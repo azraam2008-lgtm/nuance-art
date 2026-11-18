@@ -1,0 +1,34 @@
+import { handle } from '@/lib/api';
+import { db, must } from '@/lib/supabase/server';
+import { isMarketplace, isOrderStatus } from '@/lib/marketplaces/meta';
+
+export const dynamic = 'force-dynamic';
+
+// Tüm pazaryerlerinin siparişleri tek tabloda: pazaryeri / durum filtresi + arama + sayfalama
+export const GET = handle(async (req: Request) => {
+  const sp = new URL(req.url).searchParams;
+  const marketplace = sp.get('marketplace');
+  const status = sp.get('status');
+  const q = (sp.get('q') ?? '').replace(/[,()%*\\]/g, ' ').trim();
+  const page = Math.max(0, Number(sp.get('page') ?? 0));
+  const pageSize = Math.min(200, Math.max(1, Number(sp.get('pageSize') ?? 50)));
+
+  let query = db()
+    .from('orders')
+    .select('id, external_order_id, marketplace_name, customer_name, total_amount, status, order_date, shipped_at, carrier, items:order_items(sku, product_title, quantity, unit_price), cost:order_costs(net_profit, status, margin_on_revenue, same_day_eligible, same_day_met, fast_eligible, fast_met)', { count: 'exact' })
+    .order('order_date', { ascending: false })
+    .range(page * pageSize, page * pageSize + pageSize - 1);
+
+  if (isMarketplace(marketplace)) query = query.eq('marketplace_name', marketplace);
+  if (isOrderStatus(status)) query = query.eq('status', status);
+  if (q) {
+    const items = must(await db().from('order_items').select('order_id').ilike('product_title', `%${q}%`).limit(500)) as Array<{ order_id: string }>;
+    const ids = [...new Set(items.map((i) => i.order_id))];
+    const conds = [`external_order_id.ilike.%${q}%`, `customer_name.ilike.%${q}%`];
+    if (ids.length) conds.push(`id.in.(${ids.join(',')})`);
+    query = query.or(conds.join(','));
+  }
+  const { data, error, count } = await query;
+  if (error) throw new Error(error.message);
+  return { orders: data, total: count ?? 0, page, pageSize };
+});
