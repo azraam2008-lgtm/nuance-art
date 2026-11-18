@@ -119,8 +119,9 @@ nuance-art/
 
 1. Projeyi GitHub'a gönderin (`.env.local` gönderilmez).
 2. Vercel → *Add New Project* → depo → *Environment Variables*'a yukarıdaki değişkenleri girin → **Deploy**.
-3. **Cron:** `vercel.json` 5 dakikada bir `/api/cron/sync` çağırır (sipariş çekme, onay bekleyen ilan kontrolü, stok mutabakatı).
-   Vercel Hobby planı yalnızca günlük cron'a izin verir; Pro plan veya harici zamanlayıcı (cron-job.org: `GET /api/cron/sync`, başlık `Authorization: Bearer CRON_SECRET`) kullanın.
+3. **Otomatik senkron:** Panel açıkken tarayıcı 3 dakikada bir siparişleri çeker ve stokları eşitler.
+   Panel kapalıyken de çalışması için ücretsiz **cron-job.org** hesabı açıp 5 dakikada bir şu adresi çağıran bir görev ekleyin:
+   `https://ALANADINIZ/api/cron/sync?token=CRON_SECRET`. (`vercel.json`'daki günlük cron, Vercel Hobby planının sınırına uygundur.)
 4. **Etsy:** developers.etsy.com'daki uygulamanızın *Callback URL* alanına `https://ALANADINIZ/api/auth/etsy/callback` ekleyin.
 5. **Webhook (isteğe bağlı):** `https://ALANADINIZ/api/webhooks/trendyol?token=WEBHOOK_SECRET` (diğerleri için pazaryeri adını değiştirin). Webhook yalnızca tetikleyicidir; sipariş API'den çekilir.
 

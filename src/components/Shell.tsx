@@ -40,6 +40,16 @@ export default function Shell({ children }: { children: ReactNode }) {
     }).catch(() => {});
   }, [bare, router, path]);
 
+  // Panel açıkken 3 dakikada bir otomatik senkron (sipariş çekme + stok eşitleme)
+  const ready = !bare && !!status?.user && !!status.onboarded;
+  useEffect(() => {
+    if (!ready) return;
+    const tick = () => { if (document.visibilityState === 'visible') fetch('/api/sync', { method: 'POST' }).catch(() => {}); };
+    tick();
+    const t = setInterval(tick, 180_000);
+    return () => clearInterval(t);
+  }, [ready]);
+
   if (bare) return <ToastProvider>{children}</ToastProvider>;
   if (!status?.user || !status.onboarded) {
     return <div className="min-h-screen flex items-center justify-center text-slate-400 text-sm">Yükleniyor…</div>;
