@@ -12,6 +12,9 @@ function explain(e: { message?: string; code?: string; hint?: string }, status: 
   if (e.code === 'PGRST205' || e.code === '42P01' || status === 404 || msg.includes('could not find the table') || msg.includes('does not exist')) {
     return `Veritabanı tabloları kurulmamış. Supabase → SQL Editor'de schema.sql dosyasının tamamını yapıştırıp Run'a basın. (${raw})`;
   }
+  if (e.code === '42501') {
+    return `Veritabanı izinleri eksik. Supabase → SQL Editor'de schema.sql dosyasının en altındaki "10. Yetkiler" bölümünü çalıştırın. Hata sürerse Vercel'deki SUPABASE_SERVICE_ROLE_KEY değerinin sb_secret_ ile başlayan secret anahtar olduğundan emin olun. (${raw})`;
+  }
   if (status === 401 || status === 403 || msg.includes('api key') || msg.includes('jwt') || msg.includes('permission denied')) {
     return `Supabase anahtarı hatalı. Vercel'deki SUPABASE_SERVICE_ROLE_KEY değerine Supabase → Project Settings → API Keys sayfasındaki "secret" (sb_secret_...) veya "service_role" anahtarını yapıştırıp yeniden yayınlayın. (${raw})`;
   }

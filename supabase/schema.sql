@@ -627,3 +627,16 @@ begin
   insert into sync_logs(level, kind, message) values ('info', 'system', 'Demo verisi yüklendi: 10 ürün, 8 pazaryeri, ' || v_orders || ' sipariş.');
   return jsonb_build_object('products', 10, 'orders', v_orders);
 end $$;
+
+-- =====================================================================
+-- 10. Yetkiler: yeni Supabase projeleri public şemadaki tablolara
+--     service_role için otomatik izin vermiyor. Panel sunucusu service_role
+--     ile çalışır; anon/authenticated'a hiçbir izin verilmez (RLS + izin yok).
+-- =====================================================================
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+grant execute on all functions in schema public to service_role;
+alter default privileges in schema public grant all on tables to service_role;
+alter default privileges in schema public grant all on sequences to service_role;
+alter default privileges in schema public grant execute on functions to service_role;
