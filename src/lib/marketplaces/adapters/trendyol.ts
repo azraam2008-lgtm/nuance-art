@@ -314,10 +314,12 @@ function shippedAtOf(pkg: TrendyolPackage): string | null {
 export function mapTrendyolStatus(s: string): OrderStatus {
   switch (s) {
     case 'Created': case 'Awaiting': return 'new';
-    case 'Picking': case 'Invoiced': case 'Repack': return 'preparing';
+    case 'Picking': case 'Repack': return 'preparing';
+    case 'Invoiced': return 'invoiced';
     case 'Shipped': case 'AtCollectionPoint': return 'shipped';
     case 'Delivered': return 'delivered';
-    case 'Cancelled': case 'UnDelivered': case 'Returned': case 'UnSupplied': return 'cancelled';
+    case 'Returned': case 'UnDelivered': return 'returned';
+    case 'Cancelled': case 'UnSupplied': return 'cancelled';
     default: return 'new';
   }
 }

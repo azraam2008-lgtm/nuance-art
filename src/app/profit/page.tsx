@@ -70,7 +70,7 @@ export default function ProfitPage() {
             </Card>
           )}
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-            <Kpi label="Ciro (KDV dahil)" value={tl(data.total.revenue_gross)} sub={`${data.total.orders} sipariş · ${data.total.cancelled} iptal`} />
+            <Kpi label="Ciro (KDV dahil)" value={tl(data.total.revenue_gross)} sub={`${data.total.orders} sipariş · ${data.total.cancelled} iptal/iade`} />
             <Kpi label="Net kâr" value={tl(data.total.net_profit)} accent={data.total.net_profit < 0 ? 'text-rose-600' : 'text-emerald-700'}
               sub={data.total.estimates ? `${data.total.estimates} sipariş tahmini` : 'Tümü kesin'} icon={data.total.net_profit < 0 ? <TrendingDown className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />} />
             <Kpi label="Net marj" value={`%${data.total.revenue_net ? ((data.total.net_profit / data.total.revenue_net) * 100).toFixed(1) : '0'}`} sub="KDV hariç ciro üzerinden" />

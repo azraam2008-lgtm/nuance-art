@@ -1,6 +1,6 @@
 import { handle, istanbulDate } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
-import { isMarketplace, MARKETPLACES } from '@/lib/marketplaces/meta';
+import { isClosedStatus, isMarketplace, MARKETPLACES } from '@/lib/marketplaces/meta';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,10 +54,10 @@ export const GET = handle(async (req: Request) => {
     for (const agg of [a, total]) {
       for (const k of KEYS) agg[k] += Number(c[k] ?? 0);
       agg.orders += 1;
-      if (r.status === 'cancelled') agg.cancelled += 1;
+      if (isClosedStatus(r.status)) agg.cancelled += 1;
       if (c.status === 'estimate') agg.estimates += 1;
     }
-    if (r.status !== 'cancelled') {
+    if (!isClosedStatus(r.status)) {
       const lineTotal = r.items.reduce((s, i) => s + i.quantity * Number(i.unit_price), 0) || 1;
       for (const i of r.items) {
         const share = (i.quantity * Number(i.unit_price)) / lineTotal;
@@ -69,9 +69,9 @@ export const GET = handle(async (req: Request) => {
     if (Number(c.net_profit) < 0) {
       const biggest = [...(c.lines ?? [])].filter((l) => l.code !== 'product_cost').sort((x, y) => y.cost - x.cost)[0];
       losses.push({ id: r.id, external_order_id: r.external_order_id, marketplace: r.marketplace_name, date: r.order_date, net_profit: Number(c.net_profit), revenue_gross: Number(c.revenue_gross),
-        reason: r.status === 'cancelled' ? 'İade/iptal kargo maliyeti' : biggest ? `En büyük kesinti: ${biggest.code}` : '' });
+        reason: isClosedStatus(r.status) ? 'İade/iptal kargo maliyeti' : biggest ? `En büyük kesinti: ${biggest.code}` : '' });
     }
-    if (r.status !== 'cancelled' && ((c.same_day_eligible && c.same_day_met === false) || (c.fast_eligible && c.fast_met === false))) {
+    if (!isClosedStatus(r.status) && ((c.same_day_eligible && c.same_day_met === false) || (c.fast_eligible && c.fast_met === false))) {
       const sd = !!(c.same_day_eligible && c.same_day_met === false);
       if (sd) missed.sameDay++; else missed.fast++;
       missed.orders.push({ id: r.id, external_order_id: r.external_order_id, marketplace: r.marketplace_name, date: r.order_date, kind: sd ? 'Bugün Kargoda kaçırıldı' : 'Termin aşıldı' });

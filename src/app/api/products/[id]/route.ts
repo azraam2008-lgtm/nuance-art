@@ -18,7 +18,7 @@ export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: str
   const sales = must(await db().from('order_items').select('quantity, unit_price, order:orders!inner(marketplace_name, status, order_date)').eq('product_id', id).gte('order.order_date', since)) as unknown as Array<{ quantity: number; unit_price: number; order: { marketplace_name: string; status: string } }>;
   const by: Record<string, { units: number; revenue: number }> = {};
   for (const s of sales) {
-    if (s.order.status === 'cancelled') continue;
+    if (s.order.status === 'cancelled' || s.order.status === 'returned') continue;
     const k = s.order.marketplace_name;
     by[k] = { units: (by[k]?.units ?? 0) + s.quantity, revenue: (by[k]?.revenue ?? 0) + s.quantity * Number(s.unit_price) };
   }

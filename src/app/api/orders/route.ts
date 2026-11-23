@@ -1,6 +1,6 @@
 import { handle } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
-import { isMarketplace, isOrderStatus } from '@/lib/marketplaces/meta';
+import { isMarketplace, isOrderStatus, OPEN_STATUSES } from '@/lib/marketplaces/meta';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,14 +13,18 @@ export const GET = handle(async (req: Request) => {
   const page = Math.max(0, Number(sp.get('page') ?? 0));
   const pageSize = Math.min(200, Math.max(1, Number(sp.get('pageSize') ?? 50)));
 
+  const late = sp.get('late') === '1';
+  const now = new Date().toISOString();
   let query = db()
     .from('orders')
-    .select('id, external_order_id, marketplace_name, customer_name, total_amount, status, order_date, shipped_at, carrier, items:order_items(sku, product_title, quantity, unit_price), cost:order_costs(net_profit, status, margin_on_revenue, same_day_eligible, same_day_met, fast_eligible, fast_met)', { count: 'exact' })
+    .select(`id, external_order_id, marketplace_name, customer_name, total_amount, status, order_date, shipped_at, carrier, tracking_number, invoice_number, return_reason, items:order_items(sku, product_title, quantity, unit_price), cost:order_costs${late ? '!inner' : ''}(net_profit, status, margin_on_revenue, same_day_eligible, same_day_met, fast_eligible, fast_met, deadline)`, { count: 'exact' })
     .order('order_date', { ascending: false })
     .range(page * pageSize, page * pageSize + pageSize - 1);
 
   if (isMarketplace(marketplace)) query = query.eq('marketplace_name', marketplace);
   if (isOrderStatus(status)) query = query.eq('status', status);
+  // Geciken: kargoya verilmemiş ve pazaryerinin kargoya teslim süresi (termin) geçmiş
+  if (late) query = query.in('status', OPEN_STATUSES).is('shipped_at', null).lt('cost.deadline', now);
   if (q) {
     const items = must(await db().from('order_items').select('order_id').ilike('product_title', `%${q}%`).limit(500)) as Array<{ order_id: string }>;
     const ids = [...new Set(items.map((i) => i.order_id))];
@@ -30,5 +34,7 @@ export const GET = handle(async (req: Request) => {
   }
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
-  return { orders: data, total: count ?? 0, page, pageSize };
+  const lateCount = (await db().from('orders').select('id, order_costs!inner(deadline)', { count: 'exact', head: true })
+    .in('status', OPEN_STATUSES).is('shipped_at', null).lt('order_costs.deadline', now)).count ?? 0;
+  return { orders: data, total: count ?? 0, page, pageSize, lateCount };
 });

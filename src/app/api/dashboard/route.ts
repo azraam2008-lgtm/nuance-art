@@ -77,6 +77,8 @@ export const GET = handle(async () => {
     // İş kuyruğu (tablo henüz kurulmadıysa 0)
     jobsFailed: (await db().from('sync_jobs').select('id', { count: 'exact', head: true }).eq('status', 'failed')).count ?? 0,
     jobsPending: (await db().from('sync_jobs').select('id', { count: 'exact', head: true }).in('status', ['pending', 'running'])).count ?? 0,
+    lateOrders: (await db().from('orders').select('id, order_costs!inner(deadline)', { count: 'exact', head: true })
+      .in('status', ['new', 'approved', 'preparing', 'invoiced']).is('shipped_at', null).lt('order_costs.deadline', new Date().toISOString())).count ?? 0,
   };
   return {
     health,

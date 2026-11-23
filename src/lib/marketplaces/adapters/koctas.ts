@@ -178,10 +178,11 @@ export class KoctasAdapter implements MarketplaceAdapter {
 function mapMiraklStatus(s: string): OrderStatus {
   switch (s) {
     case 'WAITING_ACCEPTANCE': case 'WAITING_DEBIT': case 'WAITING_DEBIT_PAYMENT': case 'STAGING': return 'new';
-    case 'SHIPPING': return 'preparing';
+    case 'SHIPPING': return 'approved';
     case 'SHIPPED': case 'TO_COLLECT': return 'shipped';
     case 'RECEIVED': case 'CLOSED': return 'delivered';
-    case 'CANCELED': case 'REFUSED': case 'INCIDENT_OPEN': return 'cancelled';
+    case 'CANCELED': case 'REFUSED': return 'cancelled';
+    case 'INCIDENT_OPEN': case 'REFUNDED': return 'returned';
     default: return 'new';
   }
 }

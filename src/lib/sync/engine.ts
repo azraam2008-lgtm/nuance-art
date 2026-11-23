@@ -2,7 +2,7 @@ import 'server-only';
 import { db, must } from '@/lib/supabase/server';
 import { decryptSecret } from '@/lib/crypto';
 import { createAdapter } from '@/lib/marketplaces/registry';
-import { MARKETPLACES, MARKETPLACE_META, ORDER_PREFIX, ORDER_STATUS_META, isMarketplace, type MarketplaceName, type OrderStatus } from '@/lib/marketplaces/meta';
+import { MARKETPLACES, MARKETPLACE_META, OPEN_STATUSES, ORDER_PREFIX, ORDER_STATUS_META, isClosedStatus, isMarketplace, type MarketplaceName, type OrderStatus } from '@/lib/marketplaces/meta';
 import type { AdapterResult, MarketplaceAdapter, NormalizedOrder, ProductPayload, StockUpdate } from '@/lib/marketplaces/types';
 import { errorMessage } from '@/lib/marketplaces/http';
 import { computeOrderCosts, loadSettings } from '@/lib/fees/service';
@@ -300,7 +300,7 @@ export async function recompute(orderIds: string[]) {
   }
 }
 
-export interface ShipInfo { trackingNumber?: string | null; carrier?: string | null; invoiceNumber?: string | null }
+export interface ShipInfo { trackingNumber?: string | null; carrier?: string | null; invoiceNumber?: string | null; returnReason?: string | null }
 export interface RemoteStatusResult { ok: boolean; message: string; unsupported?: boolean }
 
 /**
@@ -320,9 +320,24 @@ export async function pushOrderStatus(orderId: string, status: OrderStatus, info
     return { ok: false, message };
   }
   if (!adapter.updateOrderStatus) return { ok: false, unsupported: true, message: `${label} için durum gönderimi yok.` };
+  // Panelin 8 durumu → pazaryerlerinin anladığı adımlar
+  const INVOICE_SUPPORTED: MarketplaceName[] = ['trendyol', 'idefix'];
+  let target: OrderStatus | null = status;
+  let skip: string | null = null;
+  if (status === 'approved') target = 'preparing';
+  else if (status === 'invoiced') {
+    if (INVOICE_SUPPORTED.includes(mp) && info.invoiceNumber) target = 'preparing';
+    else { target = null; skip = INVOICE_SUPPORTED.includes(mp) ? `${label} pazaryerine fatura bildirmek için fatura numarası girin.` : `${label} fatura bilgisini API ile almıyor; durum yalnızca panelde değişti.`; }
+  } else if (status === 'returned') {
+    target = null; skip = `İade ${label} üzerinden müşteri tarafından başlatılır; panelde kaydedildi ve stok iade edildi.`;
+  } else if (status === 'new') {
+    target = null; skip = 'Pazaryerinde sipariş "Yeni" durumuna geri alınamaz; yalnızca panelde değişti.';
+  }
   let res: RemoteStatusResult;
   try {
-    res = await adapter.updateOrderStatus({ externalOrderId: order.external_order_id, status, raw: order.raw, items: order.items, ...info });
+    res = target
+      ? await adapter.updateOrderStatus({ externalOrderId: order.external_order_id, status: target, raw: order.raw, items: order.items, ...info })
+      : { ok: false, unsupported: true, message: skip ?? '' };
   } catch (e) {
     res = { ok: false, message: errorMessage(e) };
   }
@@ -341,11 +356,12 @@ export async function pushOrderStatus(orderId: string, status: OrderStatus, info
 /** Siparişi kargoya verildi olarak işaretler (Bugün Kargoda / termin kontrolü bu zamana göre yapılır) ve pazaryerine bildirir */
 export async function markShipped(orderId: string, at?: string, info: ShipInfo = {}) {
   const order = must(await db().from('orders').select('external_order_id, marketplace_name, status').eq('id', orderId).single()) as { external_order_id: string; marketplace_name: MarketplaceName; status: OrderStatus };
-  if (order.status === 'cancelled') throw new Error('İptal edilmiş sipariş kargoya verilemez.');
+  if (isClosedStatus(order.status)) throw new Error('İptal veya iade edilmiş sipariş kargoya verilemez.');
   const shippedAt = at ?? new Date().toISOString();
   const u: Record<string, unknown> = { shipped_at: shippedAt };
   if (info.carrier) u.carrier = info.carrier;
-  if (order.status === 'new' || order.status === 'preparing') u.status = 'shipped';
+  if (info.trackingNumber) u.tracking_number = info.trackingNumber;
+  if (OPEN_STATUSES.includes(order.status)) u.status = 'shipped';
   must(await db().from('orders').update(u).eq('id', orderId).select('id'));
   await recompute([orderId]);
   const cost = must(await db().from('order_costs').select('net_profit, same_day_eligible, same_day_met, fast_eligible, fast_met').eq('order_id', orderId).maybeSingle()) as
@@ -360,9 +376,14 @@ export async function markShipped(orderId: string, at?: string, info: ShipInfo =
 export async function changeOrderStatus(orderId: string, status: OrderStatus, info: ShipInfo = {}) {
   const res = must(await db().rpc('set_order_status', { p_order_id: orderId, p_status: status })) as { affected_product_ids: string[] };
   const order = must(await db().from('orders').select('external_order_id, marketplace_name').eq('id', orderId).single()) as { external_order_id: string; marketplace_name: MarketplaceName };
-  await log(status === 'cancelled' ? 'warning' : 'info', 'order', order.marketplace_name,
-    `#${order.external_order_id} durumu → ${ORDER_STATUS_META[status].label}${res.affected_product_ids.length ? ' (stok havuza iade edildi)' : ''}`);
+  await log(isClosedStatus(status) ? 'warning' : 'info', 'order', order.marketplace_name,
+    `#${order.external_order_id} durumu → ${ORDER_STATUS_META[status].label}${info.returnReason ? ` (${info.returnReason})` : ''}${res.affected_product_ids.length ? ' (stok havuza iade edildi)' : ''}`);
   if (res.affected_product_ids.length) await pushStock(res.affected_product_ids, null);
+  const extra: Record<string, unknown> = {};
+  if (status === 'returned' && info.returnReason) extra.return_reason = info.returnReason.slice(0, 200);
+  if (info.invoiceNumber) extra.invoice_number = info.invoiceNumber;
+  if (info.trackingNumber) extra.tracking_number = info.trackingNumber;
+  if (Object.keys(extra).length) await db().from('orders').update(extra).eq('id', orderId);
   if (status === 'shipped') await db().from('orders').update({ shipped_at: new Date().toISOString() }).eq('id', orderId).is('shipped_at', null);
   await recompute([orderId]);
   const remote = await pushOrderStatus(orderId, status, info);

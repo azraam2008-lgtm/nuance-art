@@ -213,7 +213,8 @@ export class EtsyAdapter implements MarketplaceAdapter {
 
 function mapEtsyStatus(r: EtsyReceipt): OrderStatus {
   const s = str(r.status).toLowerCase();
-  if (s === 'canceled' || s === 'fully refunded') return 'cancelled';
+  if (s === 'fully refunded' || s === 'partially refunded') return 'returned';
+  if (s === 'canceled') return 'cancelled';
   if (s === 'completed') return 'delivered';
   if (r.is_shipped) return 'shipped';
   return 'new';

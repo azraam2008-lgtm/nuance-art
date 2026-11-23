@@ -537,6 +537,24 @@ alter table products add column if not exists variant_attrs jsonb not null defau
 create index if not exists idx_products_group on products(store_id, group_code) where group_code is not null;
 
 -- =====================================================================
+-- 9e) SİPARİŞ DURUMLARI (8 durum) ve İADE
+--  Yeni → Onaylandı → Hazırlanıyor → Faturası kesildi → Kargoda → Teslim edildi
+--  İptal edildi / İade edildi: stok havuza geri eklenir, ciroya sayılmaz.
+-- =====================================================================
+alter table orders drop constraint if exists orders_status_check;
+alter table orders add constraint orders_status_check
+  check (status in ('new','approved','preparing','invoiced','shipped','delivered','cancelled','returned'));
+alter table orders add column if not exists return_reason text;
+alter table orders add column if not exists returned_at timestamptz;
+alter table orders add column if not exists invoice_number text;
+alter table orders add column if not exists tracking_number text;
+
+-- Güvenlik stoğu: pazaryerlerine "havuz − güvenlik stoğu" gönderilir (son adetlerin iki yerde aynı anda satılma riskini azaltır)
+alter table products add column if not exists safety_stock int not null default 0 check (safety_stock >= 0);
+-- Zararına satış koruması: hedef en düşük kâr marjı (%); boşsa mağaza ayarı kullanılır
+alter table products add column if not exists min_margin numeric(6,2);
+
+-- =====================================================================
 -- FONKSİYONLAR
 -- =====================================================================
 
@@ -640,7 +658,7 @@ begin
       continue;
     end if;
 
-    if p_status <> 'cancelled' then
+    if p_status not in ('cancelled','returned') then
       update products set total_stock = total_stock - v_qty where id = v_product_id;
       insert into stock_movements(product_id, marketplace_name, change_amount, reason, order_id)
       values (v_product_id, p_marketplace, -v_qty, 'sale', v_order_id);
@@ -670,11 +688,12 @@ begin
   if v_order.status = p_status then
     return jsonb_build_object('order_id', p_order_id, 'affected_product_ids', '[]'::jsonb);
   end if;
-  if v_order.status = 'cancelled' then
-    raise exception 'İptal edilmiş sipariş yeniden açılamaz (%).', v_order.external_order_id;
+  if v_order.status in ('cancelled','returned') then
+    raise exception 'İptal veya iade edilmiş sipariş yeniden açılamaz (%).', v_order.external_order_id;
   end if;
 
-  if p_status = 'cancelled' then
+  -- İptal ve iade: satılan adetler ortak stoğa geri eklenir
+  if p_status in ('cancelled','returned') then
     for r in select oi.product_id, sum(oi.quantity)::int as qty
                from order_items oi
                join products p on p.id = oi.product_id
@@ -690,7 +709,9 @@ begin
     end loop;
   end if;
 
-  update orders set status = p_status where id = p_order_id;
+  update orders set status = p_status,
+         returned_at = case when p_status = 'returned' then now() else returned_at end
+   where id = p_order_id;
   return jsonb_build_object('order_id', p_order_id, 'affected_product_ids', to_jsonb(v_affected));
 end $$;
 
@@ -747,7 +768,7 @@ select
   sum(total_amount)::numeric(14,2) as revenue,
   count(*)::int as order_count
 from orders
-where status <> 'cancelled'
+where status not in ('cancelled','returned')
 group by 1, 2, 3;
 
 -- =====================================================================

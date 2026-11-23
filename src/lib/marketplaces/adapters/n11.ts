@@ -196,7 +196,9 @@ function mapN11Status(s: string): OrderStatus {
     case 'Picking': return 'preparing';
     case 'Shipped': return 'shipped';
     case 'Delivered': return 'delivered';
+    case 'Approved': return 'approved';
     case 'Cancelled': case 'UnPacked': case 'UnSupplied': return 'cancelled';
+    case 'Returned': return 'returned';
     default: return 'new';
   }
 }

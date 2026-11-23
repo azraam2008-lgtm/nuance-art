@@ -202,8 +202,10 @@ function mapIdxStatus(s: string): OrderStatus {
   const v = s.toLowerCase();
   if (v.includes('deliver')) return 'delivered';
   if (v.includes('ship') || v.includes('transit')) return 'shipped';
-  if (v.includes('pick') || v.includes('invoice') || v.includes('prepar')) return 'preparing';
-  if (v.includes('cancel') || v.includes('return') || v.includes('refund')) return 'cancelled';
+  if (v.includes('invoice')) return 'invoiced';
+  if (v.includes('pick') || v.includes('prepar')) return 'preparing';
+  if (v.includes('return') || v.includes('refund')) return 'returned';
+  if (v.includes('cancel') || v.includes('unsuppl')) return 'cancelled';
   return 'new';
 }
 
