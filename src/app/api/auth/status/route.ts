@@ -3,6 +3,7 @@ import { db, rawDb } from '@/lib/supabase/server';
 import { activeUser } from '@/lib/auth/server';
 import { withStore } from '@/lib/tenant';
 import { mailConfigured } from '@/lib/auth/mail';
+import { isDemoStore } from '@/lib/demo';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,7 @@ export async function GET() {
       const company = rows.find((r) => r.key === 'company')?.value as { name?: string } | undefined;
       return NextResponse.json({
         ...base,
+        demoMode: await isDemoStore(user.storeId),
         user: { email: user.email, name: user.name, role: user.role },
         onboarded: !!onboarding?.completedAt,
         companyName: company?.name ?? null,

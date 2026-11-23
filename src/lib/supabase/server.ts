@@ -27,7 +27,7 @@ const TENANT_TABLES = new Set([
   'v_stock_breakdown', 'v_daily_revenue',
 ]);
 /** Mağaza parametresi (p_store_id) alan SQL fonksiyonları */
-const TENANT_RPCS = new Set(['apply_order', 'set_order_status', 'adjust_stock', 'seed_demo_data', 'note_job_results']);
+const TENANT_RPCS = new Set(['apply_order', 'set_order_status', 'adjust_stock', 'seed_demo_data', 'note_job_results', 'clear_store_data']);
 
 type Builder = ReturnType<SupabaseClient['from']>;
 type Scoped = Pick<Builder, 'select' | 'insert' | 'upsert' | 'update' | 'delete'>;

@@ -290,6 +290,7 @@ create table if not exists stores (
   name        text not null default '',
   created_at  timestamptz not null default now()
 );
+alter table stores add column if not exists is_demo boolean not null default false;  -- deneme mağazası (örnek veri, simülasyon)
 
 alter table app_users add column if not exists store_id uuid references stores(id) on delete cascade;
 alter table app_users add column if not exists session_version int not null default 0;
@@ -795,6 +796,18 @@ alter table app_users               enable row level security;
 -- Tüm sipariş/ürün verisini siler, 10 ürün ve ~6 aylık gerçekçi sipariş geçmişi üretir.
 -- "Kurdele" ürünü 25 stokla ve hiç satışsız başlar (25 → 20 senaryosunu test etmek için).
 -- =====================================================================
+-- Mağazanın ürün, sipariş, stok, günlük ve kuyruk verisini siler (deneme mağazası açılıp kapanırken).
+-- API anahtarları, ayarlar ve kullanıcılar silinmez.
+create or replace function clear_store_data(p_store_id uuid) returns void language plpgsql as $$
+begin
+  if p_store_id is null then raise exception 'Mağaza bilgisi eksik'; end if;
+  delete from order_costs where store_id = p_store_id; delete from order_items where store_id = p_store_id;
+  delete from orders where store_id = p_store_id; delete from stock_movements where store_id = p_store_id;
+  delete from marketplace_listings where store_id = p_store_id; delete from products where store_id = p_store_id;
+  delete from sync_logs where store_id = p_store_id; delete from sync_jobs where store_id = p_store_id;
+  delete from ad_spend where store_id = p_store_id;
+end $$;
+
 drop function if exists seed_demo_data();
 create or replace function seed_demo_data(p_store_id uuid) returns jsonb language plpgsql as $$
 declare
@@ -818,11 +831,7 @@ declare
   v_p jsonb; v_prod products%rowtype; v_day int; v_n int; v_mp text; v_r float; v_qty int;
   v_date timestamptz; v_status text; v_res jsonb; v_orders int := 0; v_seq int := 0; v_oid uuid; v_ship timestamptz;
 begin
-  if p_store_id is null then raise exception 'Mağaza bilgisi eksik'; end if;
-  delete from order_costs where store_id = p_store_id; delete from order_items where store_id = p_store_id;
-  delete from orders where store_id = p_store_id; delete from stock_movements where store_id = p_store_id;
-  delete from marketplace_listings where store_id = p_store_id; delete from products where store_id = p_store_id;
-  delete from sync_logs where store_id = p_store_id;
+  perform clear_store_data(p_store_id);
 
   for v_p in select * from jsonb_array_elements(v_products) loop
     insert into products(store_id, sku, barcode, title, description, category, brand, price, list_price, cost_price, total_stock,

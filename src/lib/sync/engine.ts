@@ -7,6 +7,7 @@ import type { AdapterResult, MarketplaceAdapter, NormalizedOrder, ProductPayload
 import { errorMessage } from '@/lib/marketplaces/http';
 import { computeOrderCosts, loadSettings } from '@/lib/fees/service';
 import { jobKey, noteResults } from './job-log';
+import { isDemoStore } from '@/lib/demo';
 
 /* =====================================================================
  * Senkronizasyon Motoru
@@ -49,6 +50,7 @@ export async function log(level: LogLevel, kind: LogKind, marketplace: Marketpla
 export async function loadAdapters(): Promise<Map<MarketplaceName, { adapter: MarketplaceAdapter | null; row: CredentialRow }>> {
   const rows = must(await db().from('marketplace_credentials').select('*')) as CredentialRow[];
   const settings = await loadSettings().catch(() => null);
+  const demo = await isDemoStore();
   const map = new Map<MarketplaceName, { adapter: MarketplaceAdapter | null; row: CredentialRow }>();
   for (const name of MARKETPLACES) {
     const row = rows.find((r) => r.marketplace_name === name) ?? {
@@ -59,6 +61,7 @@ export async function loadAdapters(): Promise<Map<MarketplaceName, { adapter: Ma
     const extra = { ...(row.extra_config ?? {}), __fx: settings?.fx ?? {} };
     const adapter = createAdapter(name, { apiKey: row.api_key, apiSecret: secret, sellerId: row.seller_id, extra }, row.is_active, {
       saveExtra: async (next) => { await db().from('marketplace_credentials').update({ extra_config: next }).eq('marketplace_name', name); },
+      demo,
     });
     map.set(name, { adapter, row });
   }

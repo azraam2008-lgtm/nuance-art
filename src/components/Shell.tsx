@@ -74,6 +74,12 @@ export default function Shell({ children }: { children: ReactNode }) {
           )}
           <main className="flex-1 min-w-0 flex flex-col">
             <Header demo={status.demoMode} onMenu={() => setMenuOpen(true)} />
+            {status.demoMode && (
+              <div className="bg-amber-400 text-amber-950 text-xs sm:text-sm px-3 sm:px-6 py-1.5 flex items-center gap-2">
+                <b>Deneme mağazası</b><span className="hidden sm:inline">— ürünler ve siparişler örnektir, hiçbir pazaryerine gönderilmez.</span>
+                <Link href="/account" className="ml-auto underline whitespace-nowrap">Kapat</Link>
+              </div>
+            )}
             <div className="flex flex-1 min-h-0">
               <section className="flex-1 min-w-0 p-3 sm:p-6 pb-24 lg:pb-6">{children}</section>
               <LiveFeed />
@@ -157,7 +163,7 @@ function Sidebar({ status, onClose }: { status: Status; onClose?: () => void }) 
           ) : (
             <div className="flex items-center gap-2 text-amber-300"><span className="w-2 h-2 rounded-full bg-amber-400" />Henüz pazaryeri bağlı değil</div>
           )}
-          {status.demoMode && <div className="text-[11px] text-amber-400 mt-1">DEMO_MODE açık (geliştirme)</div>}
+          {status.demoMode && <div className="text-[11px] text-amber-400 mt-1">Deneme mağazası — tüm pazaryerleri simülasyon</div>}
         </Link>
         <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
           <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-white text-[11px] font-semibold">{status.user!.name.slice(0, 1).toUpperCase()}</div>

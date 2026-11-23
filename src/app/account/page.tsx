@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { KeyRound, LogOut, Save, ShieldCheck, Store, User } from 'lucide-react';
+import { FlaskConical, KeyRound, LogOut, Save, ShieldCheck, Store, User } from 'lucide-react';
 import { api, useToast } from '@/components/live';
 import PasswordInput, { passwordChecks } from '@/components/PasswordInput';
 import { Button, Card, ErrorBox, Field, PageLoader, fmtDate, inputClass } from '@/components/ui';
@@ -18,6 +18,18 @@ export default function AccountPage() {
   const [profile, setProfile] = useState({ name: '', storeName: '' });
   const [pw, setPw] = useState({ current: '', next: '', next2: '' });
   const [busy, setBusy] = useState<string | null>(null);
+  const [demo, setDemo] = useState<boolean | null>(null);
+  useEffect(() => { api<{ demo: boolean }>('/api/demo').then((r) => setDemo(r.demo)).catch(() => setDemo(false)); }, []);
+
+  async function toggleDemo(enable: boolean) {
+    if (!enable && !window.confirm('Deneme mağazası kapatılacak ve tüm örnek ürün/siparişler silinecek. Devam edilsin mi?')) return;
+    setBusy('demo');
+    try {
+      await api('/api/demo', { method: 'POST', body: { enable } });
+      toast(enable ? 'Deneme mağazası açıldı; örnek veriler yüklendi.' : 'Deneme mağazası kapatıldı.');
+      window.location.href = enable ? '/' : '/onboarding';
+    } catch (e) { toast((e as Error).message, 'err'); setBusy(null); }
+  }
 
   const load = () => api<Account>('/api/account').then((d) => {
     setData(d); setProfile({ name: d.user.name, storeName: d.store.name });
@@ -75,6 +87,21 @@ export default function AccountPage() {
           <Field label="Yeni şifre tekrar"><PasswordInput value={pw.next2} onChange={(v) => setPw({ ...pw, next2: v })} autoComplete="new-password" /></Field>
           <div className="sm:col-span-2 flex justify-end"><Button type="submit" loading={busy === 'pw'}><KeyRound className="w-4 h-4" /> Şifreyi değiştir</Button></div>
         </form>
+      </Card>
+
+      <Card className="p-6 space-y-3">
+        <h2 className="font-semibold flex items-center gap-2"><FlaskConical className="w-4 h-4" /> Deneme mağazası</h2>
+        {demo ? (
+          <>
+            <p className="text-sm text-slate-600">Deneme mağazası <b>açık</b>. Gördüğünüz ürün ve siparişler örnektir; tüm pazaryerleri simülasyonla çalışır ve hiçbir pazaryerine gerçek istek gitmez. Üst çubuktan &quot;Sipariş simüle et&quot; ile yeni sipariş deneyebilirsiniz.</p>
+            <Button variant="secondary" loading={busy === 'demo'} onClick={() => toggleDemo(false)}>Deneme mağazasını kapat (örnek verileri sil)</Button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-slate-600">Gerçek pazaryeri hesabınız olmadan paneli denemek için örnek ürün ve siparişlerle dolu bir deneme mağazası açın. Hiçbir pazaryerine bağlanmaz; istediğiniz zaman kapatıp gerçek kullanıma geçebilirsiniz. (Mağazada gerçek ürün veya bağlı pazaryeri varsa açılamaz.)</p>
+            <Button variant="secondary" loading={busy === 'demo'} disabled={demo === null} onClick={() => toggleDemo(true)}><FlaskConical className="w-4 h-4" /> Deneme mağazasını aç</Button>
+          </>
+        )}
       </Card>
 
       <Card className="p-6 space-y-3">
