@@ -12,6 +12,10 @@ export interface MarketplaceCredentials {
 /** Pazaryerinden bağımsız ortak ürün modeli */
 export interface ProductPayload {
   sku: string;
+  /** Ana ürün kodu: aynı ürünün seçenekleri (varyantlar) pazaryerinde bu kodla tek ilan altında toplanır. Tek seçenekli üründe SKU. */
+  groupCode: string;
+  /** Seçenek değerleri, ör. {"Renk":"Kırmızı"} (tek seçenekli üründe boş) */
+  variantAttributes: Record<string, string>;
   barcode: string;
   title: string;
   description: string;
@@ -27,8 +31,10 @@ export interface ProductPayload {
   attributes: Record<string, unknown>;
 }
 
-export interface RemoteProduct extends ProductPayload {
+export interface RemoteProduct extends Omit<ProductPayload, 'groupCode' | 'variantAttributes'> {
   externalId: string;
+  /** Pazaryerindeki ana ürün kodu (varsa; seçenekleri gruplamak için) */
+  groupCode?: string;
 }
 
 export interface StockUpdate {

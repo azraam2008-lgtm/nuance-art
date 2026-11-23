@@ -37,7 +37,7 @@ export class CiceksepetiAdapter implements MarketplaceAdapter {
     const body = {
       products: [{
         productName: p.title,
-        mainProductCode: p.sku,
+        mainProductCode: p.groupCode,
         stockCode: p.sku,
         categoryId,
         description: p.description || p.title,
@@ -177,7 +177,7 @@ export class CiceksepetiAdapter implements MarketplaceAdapter {
       const res = await request<{ batchId?: string }>(`${this.base}/Products`, {
         method: 'PUT', headers: this.headers,
         json: { products: [{
-          productName: p.title, mainProductCode: p.sku, stockCode: p.sku, description: p.description || p.title,
+          productName: p.title, mainProductCode: p.groupCode, stockCode: p.sku, description: p.description || p.title,
           deliveryMessageType: num(p.attributes.deliveryMessageType ?? this.c.extra.deliveryMessageType, 5),
           deliveryType: num(p.attributes.deliveryType ?? this.c.extra.deliveryType, 2),
           images: p.images.slice(0, 5), Attributes: Array.isArray(p.attributes.attributes) ? p.attributes.attributes : [],

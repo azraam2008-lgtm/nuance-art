@@ -54,7 +54,7 @@ export class TrendyolAdapter implements MarketplaceAdapter {
       items: [{
         barcode: p.barcode,
         title: p.title.slice(0, 100),
-        productMainId: p.sku,
+        productMainId: p.groupCode,
         brandId,
         categoryId,
         quantity: Math.max(0, p.stock),
@@ -98,7 +98,7 @@ export class TrendyolAdapter implements MarketplaceAdapter {
       const res = await request<{ batchRequestId?: string }>(this.url('/product/sellers/{sellerId}/products'), {
         method: 'PUT', headers: this.headers,
         json: { items: [{
-          barcode: p.barcode, title: p.title.slice(0, 100), productMainId: p.sku, brandId, categoryId, stockCode: p.sku,
+          barcode: p.barcode, title: p.title.slice(0, 100), productMainId: p.groupCode, brandId, categoryId, stockCode: p.sku,
           dimensionalWeight: num(a.dimensionalWeight, 1), description: p.description || p.title, vatRate: p.vatRate,
           cargoCompanyId: num(a.cargoCompanyId ?? this.c.extra.cargoCompanyId) || undefined,
           images: p.images.slice(0, 8).map((url) => ({ url })), attributes: Array.isArray(a.attributes) ? a.attributes : [],
@@ -227,6 +227,7 @@ export class TrendyolAdapter implements MarketplaceAdapter {
     return (res?.content ?? []).map((p) => ({
       externalId: str(p.id || p.barcode),
       sku: str(p.stockCode || p.productMainId || p.barcode),
+      groupCode: str(p.productMainId) || undefined,
       barcode: str(p.barcode),
       title: str(p.title),
       description: str(p.description),

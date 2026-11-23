@@ -43,7 +43,7 @@ export class N11Adapter implements MarketplaceAdapter {
           description: p.description || p.title,
           categoryId,
           currencyType: 'TL',
-          productMainId: p.sku,
+          productMainId: p.groupCode,
           preparingDay: num(a.preparingDay ?? this.c.extra.preparingDay, 3),
           shipmentTemplate: str(a.shipmentTemplate ?? this.c.extra.shipmentTemplate),
           stockCode: p.sku,

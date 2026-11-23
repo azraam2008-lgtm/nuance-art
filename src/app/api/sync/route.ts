@@ -2,6 +2,7 @@ import { handle } from '@/lib/api';
 import { db } from '@/lib/supabase/server';
 import { currentStoreId } from '@/lib/tenant';
 import { pollOrders, reconcile } from '@/lib/sync/engine';
+import { processDueJobs } from '@/lib/sync/jobs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -22,9 +23,10 @@ export const POST = handle(async () => {
   try {
     const at = new Date().toISOString();
     await db().from('app_settings').upsert({ key: 'last_auto_sync', value: { at } });
+    const jobs = await processDueJobs({ storeId: sid, budgetMs: 15_000, limit: 50 });
     const orders = await pollOrders();
     const reconciliation = await reconcile();
-    return { skipped: false, orders, reconciliation, at };
+    return { skipped: false, jobs, orders, reconciliation, at };
   } finally {
     running.delete(sid);
   }

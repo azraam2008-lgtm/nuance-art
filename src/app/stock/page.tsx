@@ -5,11 +5,12 @@ import { AlertTriangle, Boxes, Check, Plus, RefreshCw } from 'lucide-react';
 import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Empty, ErrorBox, Field, Modal, PageLoader, cx, inputClass } from '@/components/ui';
+import { variantText } from '@/components/product-shared';
 
 interface Row {
   id: string; sku: string; title: string; total_stock: number; low_stock_threshold: number; start_stock: number;
   trendyol_sales: number; hepsiburada_sales: number; n11_sales: number; ciceksepeti_sales: number; is_critical: boolean;
-  sales_by_marketplace: Record<string, number>; image_url: string | null;
+  sales_by_marketplace: Record<string, number>; image_url: string | null; variant_attrs?: Record<string, string> | null;
   listings: Array<{ marketplace_name: MarketplaceName; listing_status: string; last_pushed_stock: number | null; sync_error_message: string | null; last_synced_at: string | null }>;
 }
 const inSync = (r: Row, l: Row['listings'][number]) => l.listing_status !== 'active' || l.last_pushed_stock === null || l.last_pushed_stock === Math.max(0, r.total_stock);
@@ -91,7 +92,7 @@ export default function StockPage() {
                 <Link href={`/products/${r.id}`} className="flex items-center gap-2 min-w-0 flex-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {r.image_url ? <img src={r.image_url} alt="" className="w-10 h-12 rounded object-cover shrink-0" /> : <div className="w-10 h-12 rounded bg-slate-100 shrink-0" />}
-                  <div className="min-w-0"><div className="font-medium text-sm line-clamp-2">{r.title}</div><div className="text-[11px] text-slate-500 font-mono">{r.sku} · eşik {r.low_stock_threshold}</div></div>
+                  <div className="min-w-0"><div className="font-medium text-sm line-clamp-2">{r.title}{variantText(r.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(r.variant_attrs)}</span>}</div><div className="text-[11px] text-slate-500 font-mono">{r.sku} · eşik {r.low_stock_threshold}</div></div>
                 </Link>
                 <div className="text-right shrink-0">
                   <div className={cx('text-xl font-bold', r.is_critical ? 'text-rose-600' : 'text-slate-900')}>{r.total_stock}</div>
@@ -137,7 +138,7 @@ export default function StockPage() {
                     <td className="px-4 py-3 min-w-[240px]"><Link href={`/products/${r.id}`} className="flex items-center gap-2 hover:text-indigo-700">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {r.image_url ? <img src={r.image_url} alt="" className="w-8 h-10 rounded object-cover" /> : <div className="w-8 h-10 rounded bg-slate-100" />}
-                      <div><div className="font-medium">{r.title}</div><div className="text-xs text-slate-500 font-mono">{r.sku} · eşik {r.low_stock_threshold}</div></div></Link></td>
+                      <div><div className="font-medium">{r.title}{variantText(r.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(r.variant_attrs)}</span>}</div><div className="text-xs text-slate-500 font-mono">{r.sku} · eşik {r.low_stock_threshold}</div></div></Link></td>
                     <td className="px-4 py-3 text-right">{r.start_stock}</td>
                     {cols.map((m) => {
                       const v = r.sales_by_marketplace?.[m] ?? 0;

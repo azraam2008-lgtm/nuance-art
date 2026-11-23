@@ -7,7 +7,7 @@ import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta'
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Empty, ErrorBox, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
 import MarketplaceImport from '@/components/MarketplaceImport';
-import { STATUS_LABEL, STATUS_STYLE, stockSynced, type Product } from '@/components/product-shared';
+import { STATUS_LABEL, STATUS_STYLE, stockSynced, variantText, type Product } from '@/components/product-shared';
 
 function Thumb({ p, className }: { p: Product; className?: string }) {
   return p.image_url
@@ -58,7 +58,7 @@ export default function ProductsPage() {
   const rows = useMemo(() => {
     const needle = q.toLocaleLowerCase('tr-TR');
     return products.filter((p) => {
-      if (needle && ![p.title, p.sku, p.barcode, p.brand, p.category].some((x) => (x ?? '').toLocaleLowerCase('tr-TR').includes(needle))) return false;
+      if (needle && ![p.title, p.sku, p.barcode, p.brand, p.category, p.group_code ?? '', variantText(p.variant_attrs)].some((x) => (x ?? '').toLocaleLowerCase('tr-TR').includes(needle))) return false;
       if (filter === 'low') return p.total_stock < p.low_stock_threshold;
       if (filter === 'error') return p.listings.some((l) => l.listing_status === 'error' || !stockSynced(p, l));
       if (filter === 'pending') return p.listings.some((l) => l.listing_status === 'pending');
@@ -92,7 +92,7 @@ export default function ProductsPage() {
                       <div className="flex gap-3 p-3">
                         <Thumb p={p} className="w-20 h-28 rounded-lg shrink-0" />
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium text-sm line-clamp-2">{p.title}</div>
+                          <div className="font-medium text-sm line-clamp-2">{p.title}{variantText(p.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(p.variant_attrs)}</span>}</div>
                           <div className="text-[11px] text-slate-500 mt-0.5">{p.sku} · {fmtDate(p.created_at)}</div>
                           <div className="flex items-center gap-2 mt-1.5"><span className="font-semibold text-sm">{tl2(p.price)}</span><StockPill p={p} /></div>
                           <div className="text-[11px] text-slate-500 mt-1">{p.images?.length ?? 0} fotoğraf</div>
@@ -138,7 +138,7 @@ export default function ProductsPage() {
                     <Link href={`/products/${p.id}`} className="flex gap-3">
                       <Thumb p={p} className="w-14 h-20 rounded-lg shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <div className="font-medium text-sm line-clamp-2">{p.title}</div>
+                        <div className="font-medium text-sm line-clamp-2">{p.title}{variantText(p.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(p.variant_attrs)}</span>}</div>
                         <div className="text-[11px] text-slate-500 font-mono truncate">{p.sku}</div>
                         <div className="flex items-center gap-2 mt-1"><span className="font-semibold text-sm">{tl2(p.price)}</span><StockPill p={p} /></div>
                       </div>
@@ -182,7 +182,7 @@ export default function ProductsPage() {
                           <td className="px-4 py-3">
                             <Link href={`/products/${p.id}`} className="flex items-center gap-3 group">
                               <Thumb p={p} className="w-10 h-14 rounded-lg shrink-0" />
-                              <div className="min-w-0"><div className="font-medium group-hover:text-indigo-700 line-clamp-2">{p.title}</div><div className="text-xs text-slate-500 font-mono">{p.sku} · {p.barcode}</div></div>
+                              <div className="min-w-0"><div className="font-medium group-hover:text-indigo-700 line-clamp-2">{p.title}{variantText(p.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(p.variant_attrs)}</span>}</div><div className="text-xs text-slate-500 font-mono">{p.sku} · {p.barcode}</div></div>
                             </Link>
                           </td>
                           <td className="px-4 py-3 text-right whitespace-nowrap"><div>{tl2(p.price)}</div><div className="text-xs text-slate-500">{tl2(p.cost_price)}</div></td>

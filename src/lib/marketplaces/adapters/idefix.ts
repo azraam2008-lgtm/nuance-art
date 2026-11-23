@@ -49,7 +49,7 @@ export class IdefixAdapter implements MarketplaceAdapter {
         method: 'POST', headers: this.headers,
         json: {
           products: [{
-            barcode: p.barcode, title: p.title, productMainId: p.sku, brandId, categoryId, inventoryQuantity: Math.max(0, p.stock),
+            barcode: p.barcode, title: p.title, productMainId: p.groupCode, brandId, categoryId, inventoryQuantity: Math.max(0, p.stock),
             vendorStockCode: p.sku, description: p.description || p.title, price: p.price, comparePrice: p.listPrice, vatRate: p.vatRate,
             deliveryDuration: num(a.handlingDays, 1), deliveryType: a.sameDay ? 'same_day_shipping' : 'regular',
             images: p.images.map((url) => ({ url })), attributes: Array.isArray(a.attributes) ? a.attributes : [],
@@ -187,7 +187,7 @@ export class IdefixAdapter implements MarketplaceAdapter {
       const res = await request<{ batchRequestId?: string }>(`${this.base}${this.path('productUpdatePath', '/pim/pool/{vendorId}/update')}`, {
         method: 'POST', headers: this.headers,
         json: { products: [{
-          barcode: p.barcode, title: p.title, productMainId: p.sku, vendorStockCode: p.sku, description: p.description || p.title,
+          barcode: p.barcode, title: p.title, productMainId: p.groupCode, vendorStockCode: p.sku, description: p.description || p.title,
           images: p.images.map((url) => ({ url })), ...(Array.isArray(p.attributes.attributes) ? { attributes: p.attributes.attributes } : {}),
         }] },
       });

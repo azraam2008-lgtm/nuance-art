@@ -17,6 +17,9 @@ Bu dosya, projenin claude.ai sohbetinde yapılan işin özetidir. Yeni bir oturu
   - `/signup` kayıt, `/login` giriş, `/forgot` + `/reset` şifre sıfırlama (Gmail ile e-posta), `/account` hesap ve şifre değiştirme. `/setup` artık `/signup`'a yönlenir.
   - `/onboarding` önce satış yapılan pazaryerlerini seçtirir, sonra yalnızca onlar için gereken anahtar(lar)ı ister (alanlar `guides.ts` → `needs`).
 - **Sipariş durumu gönderimi:** Panelde durum değişince (`changeOrderStatus`, `markShipped`) adaptörün `updateOrderStatus`'u çağrılır. Pazaryerinin desteklemediği adımlar `unsupported` döner (hata değil, bilgi).
+- **İş kuyruğu ve İşlem Merkezi (`/operations`):** Pazaryerine gönderilemeyen stok/yayın/içerik/sipariş durumu `sync_jobs` tablosuna yazılır (`src/lib/sync/job-log.ts` → `noteResults`). Geçici hatalar (bağlantı, 429, 5xx) 1-5-15-60-180-360 dk aralıkla tekrar denenir; 4xx hatalar hemen "başarısız" olur. Çalışan: `src/lib/sync/jobs.ts` (`processDueJobs`), `/api/cron/sync` ve panelin `/api/sync`'i çağırır. Yeni bir pazaryeri gönderimi eklersen sonucunu `noteResults` ile bildir.
+- **Zamanlayıcı:** `supabase/zamanlayici.sql` Supabase pg_cron + pg_net ile 5 dakikada bir `/api/cron/sync?token=…` çağırır; anahtar `system_config.cron_token` (veritabanında üretilir, CRON_SECRET de kabul edilir).
+- **Varyantlar (seçenekler):** Her seçenek ayrı `products` satırı (kendi SKU, barkod, stok); `group_code` (ana ürün kodu) ile bağlanır, `variant_attrs` ({"Renk":"Kırmızı"}). Pazaryerine `ProductPayload.groupCode` ile tek ilan altında gider, başlığa seçenek değeri eklenir (`variantTitle`). Trendyol'da varyant özelliği (ör. Renk) kategori özelliğinden eşleştirilir. Başlık/açıklama/marka/kategori değişince diğer seçeneklere de uygulanır. Sihirbaz: `src/components/VariantEditor.tsx`.
 - **Reklam (`/ads`):** Pazaryerleri reklam API'si açmıyor; sayfa her pazaryeri için rehber + panel linki verir, girilen reklam harcaması (`ad_spend`) Kârlılık'ta düşülür.
 - **Demo modu yok.** Yalnızca `DEMO_MODE=true` ortam değişkeni verilirse çalışır.
 
@@ -51,7 +54,7 @@ Hedef: Trendyol, Hepsiburada, N11 (ve diğer bağlı pazaryerleri) üzerinden sa
   - Ürün içe aktarma (`/api/products/import?source=`) bağlı her pazaryerinden çalışır.
 - **Senkron motoru:** `src/lib/sync/engine.ts` — `publishProduct`, `pushStock`, `ingestOrder`, `pollOrders`, `reconcile`.
 - **Kâr motoru:** `src/lib/fees/*`, saf TypeScript.
-- **Testler:** `npm test` → `tests/fees.test.ts`, `tests/rates.test.ts`, `tests/tenant.test.ts` (mağaza filtresi), `tests/password.test.ts`.
+- **Testler:** `npm test` → `tests/fees.test.ts`, `tests/rates.test.ts`, `tests/tenant.test.ts` (mağaza filtresi), `tests/password.test.ts`, `tests/jobs.test.ts` (hangi hata tekrar denenir).
 - **Veritabanı şeması:** `supabase/schema.sql`. Tekrar çalıştırılabilir.
   - "9b) Çok mağazalı yapı" bölümü `stores` tablosunu ve `store_id` sütunlarını ekler; sahipsiz eski verileri ilk kullanıcının mağazasına taşır.
   - Tetikleyiciler alt satırların mağazasını üst satırdan alır ve başka mağazanın ürününe/siparişine bağlanmayı reddeder.
@@ -95,6 +98,8 @@ Yerel geliştirme için `.env.example` dosyasını `.env.local` olarak kopyala. 
   - Pazarama, idefix, Koçtaş: adaptörlerin tamamı.
   - Diğerlerinde yeni eklenenler: sipariş durumu gönderimi (özellikle Pazarama durum kodları, idefix yolu, Çiçeksepeti "readyforcargo" uçları, N11 `rest/order/v1/update`) ve kategori listesi uçları (Hepsiburada, N11, Çiçeksepeti, Pazarama, idefix).
   - Yolların çoğu Ayarlar > Gelişmiş'ten (`extra_config`) değiştirilebilir.
-- **cron-job.org kurulumu:** Yapılmadı.
+- **Sık senkron:** cron-job.org yerine `supabase/zamanlayici.sql` (pg_cron) kullanılacak.
 - **Telefon uyumu (yapıldı):** `lg` altında yan menü soldan açılır çekmece, altta sekme çubuğu (`Shell.tsx`). Tablolu sayfalarda (Ürünler, Stok, Siparişler) `md` altında kart listesi gösterilir; yeni tablolu sayfa eklerken aynı düzeni kullan.
-- **Kullanıcı kararları (2026-11-23):** Bütün pazaryerleri eşit öncelikli (öne çıkan yok). Sipariş durumları 8'e çıkarılabilir, daha fazlası değil. İş kuyruğu, varyant ve barındırma (ücretli plan) için kullanıcı önce açıklama istedi; onay bekliyor.
+- **Kullanıcı kararları (2026-11-23):** Bütün pazaryerleri eşit öncelikli (öne çıkan yok). Sipariş durumları 8'e çıkarılabilir, daha fazlası değil (henüz yapılmadı). İş kuyruğu ve varyant onaylandı ve yapıldı. Barındırma (ücretli plan): şimdilik ücretsiz devam.
+- **İş kuyruğu + varyant sürümü için kullanıcının yapacakları:** `schema.sql`'i yeniden çalıştırmak (sync_jobs, system_config, group_code/variant_attrs), ardından `zamanlayici.sql`'i çalıştırmak.
+- **Varyant sınırları:** Hepsiburada, N11, Çiçeksepeti, Pazarama, idefix'te seçenekler ana kodla gruplanır ve başlıkta görünür, ama pazaryerinin kendi varyant özelliği (renk/beden kodu) gönderilmiyor; Etsy'de her seçenek ayrı ilan. Gerçek hesapla doğrulanmalı.

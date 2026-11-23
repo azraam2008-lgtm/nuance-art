@@ -59,7 +59,7 @@ export class PazaramaAdapter implements MarketplaceAdapter {
         json: {
           products: [{
             name: p.title, displayName: p.title, description: p.description || p.title, brandId, categoryId,
-            desi: num(a.desi, 1), code: p.barcode, groupCode: p.sku, stockCode: p.sku, stockCount: Math.max(0, p.stock),
+            desi: num(a.desi, 1), code: p.barcode, groupCode: p.groupCode, stockCode: p.sku, stockCount: Math.max(0, p.stock),
             currencyType: 'TRY', listPrice: p.listPrice, salePrice: p.price, vatRate: p.vatRate,
             images: p.images.map((imageurl) => ({ imageurl })), attributes: Array.isArray(a.attributes) ? a.attributes : [],
           }],

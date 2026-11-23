@@ -6,7 +6,7 @@ import { AlertTriangle, ArrowLeft, Check, Minus, Pencil, Plus, RefreshCw, Rocket
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, ErrorBox, Field, MarketplaceBadge, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
 import ImageUploader from '@/components/ImageUploader';
-import { STATUS_LABEL, STATUS_STYLE, stockSynced, type Listing, type Product } from '@/components/product-shared';
+import { STATUS_LABEL, STATUS_STYLE, stockSynced, variantText, type Listing, type Product } from '@/components/product-shared';
 import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 
 interface FullProfit { price: number; commission: number; fee: number; shipping: number; tax: number; netProfit: number; margin: number; commissionRate: number; verified: boolean; lines: Array<{ label: string; cost: number; note?: string }>; notes: string[] }
@@ -14,6 +14,7 @@ interface Detail {
   product: Omit<Product, 'profits'> & { description: string; list_price: number | null; profits: Record<string, FullProfit> };
   movements: Array<{ marketplace_name: string | null; change_amount: number; reason: string; created_at: string }>;
   sales30: Record<string, { units: number; revenue: number }>;
+  siblings?: Array<{ id: string; sku: string; variant_attrs: Record<string, string> | null; total_stock: number; price: number }>;
 }
 const REASON: Record<string, string> = { sale: 'Satış', cancel: 'İptal iadesi', restock: 'Stok girişi', manual_adjust: 'Düzeltme', initial: 'Açılış' };
 
@@ -154,7 +155,19 @@ export default function ProductDetailPage() {
               </div>
             ) : (
               <>
-                <h2 className="text-lg font-semibold">{p.title}</h2>
+                <h2 className="text-lg font-semibold">{p.title}{variantText(p.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(p.variant_attrs)}</span>}</h2>
+                {(data.siblings?.length ?? 0) > 1 && (
+                  <div className="mt-2">
+                    <div className="text-xs text-slate-500 mb-1">Bu ürünün seçenekleri (ana kod {p.group_code}):</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {data.siblings!.map((v) => (
+                        <Link key={v.id} href={`/products/${v.id}`} className={cx('text-xs rounded-lg border px-2 py-1', v.id === p.id ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-slate-200 hover:border-slate-300')}>
+                          {variantText(v.variant_attrs) || v.sku} <span className={cx('ml-1 font-semibold', v.total_stock <= 0 ? 'text-rose-600' : 'text-slate-500')}>{v.total_stock}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="text-xs text-slate-500 mt-0.5">{p.brand} · {p.category} · SKU <span className="font-mono">{p.sku}</span> · Barkod <span className="font-mono">{p.barcode}</span> · KDV %{Number(p.vat_rate)} · {Number(p.desi)} desi · Eklenme {fmtDate(p.created_at)}</div>
                 <div className="flex flex-wrap gap-6 mt-3">
                   <div><div className="text-xs text-slate-500">Satış fiyatı</div><div className="text-lg font-semibold">{tl2(p.price)}</div>{p.list_price && Number(p.list_price) > Number(p.price) && <div className="text-xs text-slate-400 line-through">{tl2(p.list_price)}</div>}</div>

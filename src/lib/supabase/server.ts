@@ -23,11 +23,11 @@ export function rawDb(): SupabaseClient {
 /** Her satırı bir mağazaya ait olan tablolar ve görünümler */
 const TENANT_TABLES = new Set([
   'products', 'marketplace_listings', 'orders', 'order_items', 'stock_movements', 'marketplace_credentials',
-  'sync_logs', 'fee_rules', 'carrier_rates', 'app_settings', 'order_costs', 'ad_spend',
+  'sync_logs', 'fee_rules', 'carrier_rates', 'app_settings', 'order_costs', 'ad_spend', 'sync_jobs',
   'v_stock_breakdown', 'v_daily_revenue',
 ]);
 /** Mağaza parametresi (p_store_id) alan SQL fonksiyonları */
-const TENANT_RPCS = new Set(['apply_order', 'set_order_status', 'adjust_stock', 'seed_demo_data']);
+const TENANT_RPCS = new Set(['apply_order', 'set_order_status', 'adjust_stock', 'seed_demo_data', 'note_job_results']);
 
 type Builder = ReturnType<SupabaseClient['from']>;
 type Scoped = Pick<Builder, 'select' | 'insert' | 'upsert' | 'update' | 'delete'>;

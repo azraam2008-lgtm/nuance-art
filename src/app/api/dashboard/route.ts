@@ -74,6 +74,9 @@ export const GET = handle(async () => {
     pending: ls.filter((l) => l.listing_status === 'pending').length,
     errors: ls.filter((l) => l.listing_status === 'error').length,
     unsynced: ls.filter((l) => l.listing_status === 'active' && l.last_pushed_stock !== null && l.last_pushed_stock !== Math.max(0, l.product.total_stock)).length,
+    // İş kuyruğu (tablo henüz kurulmadıysa 0)
+    jobsFailed: (await db().from('sync_jobs').select('id', { count: 'exact', head: true }).eq('status', 'failed')).count ?? 0,
+    jobsPending: (await db().from('sync_jobs').select('id', { count: 'exact', head: true }).in('status', ['pending', 'running'])).count ?? 0,
   };
   return {
     health,

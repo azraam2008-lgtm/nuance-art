@@ -44,6 +44,7 @@ export const POST = handle(async (req: Request) => {
       cost_price: rp.costPrice ?? 0, total_stock: Math.max(0, Math.trunc(rp.stock ?? 0)), low_stock_threshold: 5,
       image_url: rp.images?.[0] ?? null, images: rp.images ?? [],
       marketplace_attributes: { [source]: rp.attributes ?? {} },
+      group_code: rp.groupCode && rp.groupCode !== rp.sku ? rp.groupCode : null,
     }).select('*').single();
     if (error) {
       results.push({ sku: rp.sku, ok: false, message: error.code === '23505' ? 'Zaten panelde kayıtlı.' : error.message });

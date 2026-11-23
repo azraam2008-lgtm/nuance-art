@@ -436,6 +436,106 @@ alter table auth_attempts   enable row level security;
 alter table ad_spend        enable row level security;
 
 -- =====================================================================
+-- 9c) İŞ KUYRUĞU (pazaryerine gönderilemeyen işlemler)
+--  Stok, ürün yayını, içerik güncellemesi veya sipariş durumu bir pazaryerine
+--  gönderilemezse buraya yazılır; zamanlayıcı artan aralıklarla (1, 5, 15, 60,
+--  180, 360 dk) tekrar dener. Tekrarla düzelmeyecek hatalar "failed" olur ve
+--  panelde "İşlem Merkezi"nde gösterilir. Aynı iş (dedupe_key) iki kez açılmaz.
+-- =====================================================================
+create table if not exists sync_jobs (
+  id               uuid primary key default gen_random_uuid(),
+  store_id         uuid not null references stores(id) on delete cascade,
+  kind             text not null check (kind in ('push_stock','publish','update_product','order_status')),
+  marketplace_name text references marketplaces(name),
+  ref_id           uuid,                         -- ürün veya sipariş
+  payload          jsonb not null default '{}'::jsonb,
+  dedupe_key       text not null,
+  status           text not null default 'pending' check (status in ('pending','running','done','failed','cancelled')),
+  attempts         int  not null default 0,
+  max_attempts     int  not null default 6,
+  run_at           timestamptz not null default now(),
+  locked_at        timestamptz,
+  last_error       text,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  finished_at      timestamptz
+);
+create unique index if not exists ux_sync_jobs_open on sync_jobs(store_id, dedupe_key) where status in ('pending','running','failed');
+create index if not exists idx_sync_jobs_due on sync_jobs(status, run_at);
+create index if not exists idx_sync_jobs_store on sync_jobs(store_id, status, updated_at desc);
+alter table sync_jobs enable row level security;
+
+-- Sistem ayarları (mağazadan bağımsız; ör. zamanlayıcı anahtarı)
+create table if not exists system_config (
+  key   text primary key,
+  value text not null
+);
+alter table system_config enable row level security;
+insert into system_config(key, value) values ('cron_token', encode(gen_random_bytes(24), 'hex')) on conflict (key) do nothing;
+
+-- İşlem sonuçlarını toplu kaydeder: başarılıysa açık işi kapatır, değilse işi açar / ertelenmiş tekrara alır.
+-- p_items: [{"key":"stock:<ürün>:trendyol","kind":"push_stock","mp":"trendyol","ref":"<uuid>","payload":{...},"ok":false,"error":"HTTP 500","retryable":true}]
+create or replace function note_job_results(p_store_id uuid, p_items jsonb) returns void language plpgsql as $$
+declare
+  it      jsonb;
+  v_job   sync_jobs%rowtype;
+  v_delay int[] := array[1, 5, 15, 60, 180, 360];
+  v_att   int;
+  v_retry boolean;
+begin
+  if p_store_id is null then raise exception 'Mağaza bilgisi eksik'; end if;
+  for it in select * from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) loop
+    if coalesce((it->>'ok')::boolean, false) then
+      update sync_jobs set status = 'done', finished_at = now(), updated_at = now(), locked_at = null
+       where store_id = p_store_id and dedupe_key = it->>'key' and status in ('pending','running','failed');
+      continue;
+    end if;
+    v_retry := coalesce((it->>'retryable')::boolean, true);
+    select * into v_job from sync_jobs
+     where store_id = p_store_id and dedupe_key = it->>'key' and status in ('pending','running','failed') for update;
+    if found then
+      v_att := greatest(v_job.attempts, 1);
+      update sync_jobs set
+        status     = case when v_retry and v_att < v_job.max_attempts then 'pending' else 'failed' end,
+        run_at     = now() + make_interval(mins => v_delay[least(v_att, 6)]),
+        last_error = left(coalesce(it->>'error', ''), 1000),
+        payload    = coalesce(it->'payload', payload),
+        locked_at  = null,
+        updated_at = now()
+       where id = v_job.id;
+    else
+      insert into sync_jobs(store_id, kind, marketplace_name, ref_id, payload, dedupe_key, status, attempts, run_at, last_error)
+      values (p_store_id, it->>'kind', nullif(it->>'mp', ''), nullif(it->>'ref', '')::uuid, coalesce(it->'payload', '{}'::jsonb), it->>'key',
+              case when v_retry then 'pending' else 'failed' end, 1, now() + interval '1 minute', left(coalesce(it->>'error', ''), 1000));
+    end if;
+  end loop;
+end $$;
+
+-- Zamanı gelen işleri alır (aynı işi iki çalışan almaz: SKIP LOCKED). 10 dk'dan uzun "running" kalan iş yeniden alınır.
+create or replace function claim_sync_jobs(p_limit int, p_store_id uuid default null) returns setof sync_jobs language sql as $$
+  update sync_jobs j set status = 'running', locked_at = now(), attempts = j.attempts + 1, updated_at = now()
+   where j.id in (
+     select id from sync_jobs
+      where ((status = 'pending' and run_at <= now()) or (status = 'running' and locked_at < now() - interval '10 minutes'))
+        and (p_store_id is null or store_id = p_store_id)
+      order by run_at
+      limit p_limit
+      for update skip locked)
+  returning j.*;
+$$;
+
+-- =====================================================================
+-- 9d) VARYANTLAR (renk, koku, beden… seçenekleri)
+--  Her seçenek kendi barkodu, SKU'su ve stoğu olan bir "products" satırıdır;
+--  aynı ürünün seçenekleri group_code (ana ürün kodu) ile bağlanır ve pazaryerine
+--  bu kodla tek ilan altında gönderilir (Trendyol productMainId, Hepsiburada
+--  VaryantGroupID…). Sipariş eşleştirme, ortak stok ve kâr hesabı seçenek bazında aynen çalışır.
+-- =====================================================================
+alter table products add column if not exists group_code text;                                     -- boşsa tek seçenekli ürün
+alter table products add column if not exists variant_attrs jsonb not null default '{}'::jsonb;    -- {"Renk":"Kırmızı","Beden":"M"}
+create index if not exists idx_products_group on products(store_id, group_code) where group_code is not null;
+
+-- =====================================================================
 -- FONKSİYONLAR
 -- =====================================================================
 

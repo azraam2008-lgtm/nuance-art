@@ -47,7 +47,7 @@ export class HepsiburadaAdapter implements MarketplaceAdapter {
     if (!categoryId) return { ok: false, status: 'error', message: 'Hepsiburada kategori ID gerekli.' };
     const attributes: Record<string, unknown> = {
       merchantSku: p.sku,
-      VaryantGroupID: p.sku,
+      VaryantGroupID: p.groupCode,
       Barcode: p.barcode,
       UrunAdi: p.title,
       UrunAciklamasi: p.description || p.title,
