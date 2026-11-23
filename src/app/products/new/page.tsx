@@ -167,6 +167,9 @@ export default function NewProductPage() {
   const canGo = (i: number) => problems.slice(0, i).every((x) => x.length === 0);
 
   async function submit() {
+    // Zararına satış koruması: seçili pazaryerlerinden biri bu fiyatla zarar ediyorsa onay iste
+    const losing = (quotes.data ?? []).filter((q) => selected.includes(q.marketplace as MarketplaceName) && q.netProfit < 0);
+    if (losing.length && !window.confirm(`Dikkat: ${losing.map((q) => `${MARKETPLACE_META[q.marketplace as MarketplaceName].label} (${tl2(q.netProfit)})`).join(', ')} bu fiyatla ZARAR ediyor.\n\nYine de yayınlamak istiyor musunuz? (Vazgeçip 4. adımda o pazaryerine özel fiyat girebilirsiniz.)`)) return;
     setSaving(true);
     try {
       const marketplaceAttributes: Record<string, Record<string, unknown>> = {};

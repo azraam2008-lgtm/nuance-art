@@ -11,6 +11,7 @@ export interface ListingCfg {
 }
 export interface ProductCfg {
   id: string; sku: string; title: string; cost_price: number; cost_vat_rate: number | null; vat_rate: number; desi: number; packaging_cost: number;
+  safety_stock?: number | null; min_margin?: number | null;
   listings: ListingCfg[];
 }
 
@@ -29,13 +30,13 @@ const toRow = (l?: ListingCfg): Row => ({
 export default function ProductCostModal({ product, onClose }: { product: ProductCfg | null; onClose: () => void }) {
   const toast = useToast();
   const { bump } = useLive();
-  const [p, setP] = useState({ costPrice: '', costVatRate: '', desi: '', packagingCost: '' });
+  const [p, setP] = useState({ costPrice: '', costVatRate: '', desi: '', packagingCost: '', safetyStock: '0', minMargin: '' });
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!product) return;
-    setP({ costPrice: String(product.cost_price), costVatRate: product.cost_vat_rate != null ? String(product.cost_vat_rate) : '', desi: String(product.desi ?? 1), packagingCost: String(product.packaging_cost ?? 0) });
+    setP({ costPrice: String(product.cost_price), costVatRate: product.cost_vat_rate != null ? String(product.cost_vat_rate) : '', desi: String(product.desi ?? 1), packagingCost: String(product.packaging_cost ?? 0), safetyStock: String(product.safety_stock ?? 0), minMargin: product.min_margin != null ? String(product.min_margin) : '' });
     setRows(Object.fromEntries(MARKETPLACES.map((m) => [m, toRow(product.listings.find((l) => l.marketplace_name === m))])));
   }, [product]);
 
@@ -48,7 +49,7 @@ export default function ProductCostModal({ product, onClose }: { product: Produc
       const r = await api<{ recomputed: number }>(`/api/products/${product.id}/listings`, {
         method: 'PUT',
         body: {
-          product: { costPrice: p.costPrice, costVatRate: p.costVatRate === '' ? null : p.costVatRate, desi: p.desi, packagingCost: p.packagingCost },
+          product: { costPrice: p.costPrice, costVatRate: p.costVatRate === '' ? null : p.costVatRate, desi: p.desi, packagingCost: p.packagingCost, safetyStock: p.safetyStock || 0, minMargin: p.minMargin === '' ? null : p.minMargin },
           listings: MARKETPLACES.map((m) => ({
             marketplace: m,
             commissionRate: rows[m].commissionRate === '' ? null : rows[m].commissionRate,
@@ -79,6 +80,8 @@ export default function ProductCostModal({ product, onClose }: { product: Produc
             <Field label="Maliyet KDV oranı (%)" hint={`Boşsa satış KDV'si (%${Number(product.vat_rate)})`}><input type="number" step="1" min="0" className={inputClass} value={p.costVatRate} onChange={(e) => setP({ ...p, costVatRate: e.target.value })} /></Field>
             <Field label="Desi (tek adet paket)"><input type="number" step="0.5" min="0" className={inputClass} value={p.desi} onChange={(e) => setP({ ...p, desi: e.target.value })} /></Field>
             <Field label="Ambalaj (adet, KDV hariç ₺)"><input type="number" step="0.01" min="0" className={inputClass} value={p.packagingCost} onChange={(e) => setP({ ...p, packagingCost: e.target.value })} /></Field>
+            <Field label="Güvenlik stoğu (adet)" hint="Pazaryerlerine bu kadar eksik gösterilir; son adetlerin iki yerde aynı anda satılmasını önler."><input type="number" step="1" min="0" className={inputClass} value={p.safetyStock} onChange={(e) => setP({ ...p, safetyStock: e.target.value })} /></Field>
+            <Field label="En düşük kâr marjı (%)" hint="Fiyat bunun altına düşerse (veya zarar ederse) panel uyarır. Boş = yalnızca zarar uyarısı."><input type="number" step="0.5" className={inputClass} value={p.minMargin} onChange={(e) => setP({ ...p, minMargin: e.target.value })} /></Field>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">

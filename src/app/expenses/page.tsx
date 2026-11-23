@@ -57,8 +57,8 @@ export default function ExpensesPage() {
           <label className="flex items-center gap-2 text-sm pb-2.5 col-span-2 md:col-span-1">
             <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={f.monthly} onChange={(e) => setF({ ...f, monthly: e.target.checked })} /> Her ay tekrarla
           </label>
+          <div className="col-span-2 md:col-span-5"><Field label="Not (isteğe bağlı)"><input className={inputClass} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="Ör. atölye kirası" /></Field></div>
           <Button type="submit" loading={busy} className="col-span-2 md:col-span-1"><Plus className="w-4 h-4" /> Ekle</Button>
-          <div className="col-span-2 md:col-span-6"><Field label="Not (isteğe bağlı)"><input className={inputClass} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="Ör. atölye kirası" /></Field></div>
         </form>
       </Card>
 

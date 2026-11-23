@@ -4,6 +4,7 @@ import { isMarketplace } from '@/lib/marketplaces/meta';
 import { computeOrderCosts } from '@/lib/fees/service';
 import { profitsFor } from '@/lib/fees/listing-profit';
 import { log, pushContent, pushStock, type ProductRow } from '@/lib/sync/engine';
+import { priceWarnings } from '@/lib/fees/guard';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -87,5 +88,7 @@ export const PUT = handle(async (req: Request, ctx: { params: Promise<{ id: stri
     const open = (must(await db().from('order_items').select('order_id, order:orders!inner(shipped_at)').eq('product_id', id).is('order.shipped_at', null)) as Array<{ order_id: string }>).map((x) => x.order_id);
     if (open.length) await computeOrderCosts(open);
   }
-  return { product, stock, content };
+  // Zararına satış koruması: fiyat veya maliyet değiştiyse uyar
+  const warnings = 'price' in u || 'cost_price' in u || Object.keys(prices).length ? await priceWarnings([id]) : [];
+  return { product, stock, content, warnings };
 });

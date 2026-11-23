@@ -65,15 +65,15 @@ export const GET = handle(async () => {
   }
 
   // Sağlık: senkron sorunları, onay bekleyen ilanlar, tükenen ürünler
-  const ls = must(await db().from('marketplace_listings').select('listing_status, last_pushed_stock, sync_error_message, product:products!inner(total_stock)').neq('listing_status', 'passive')) as unknown as
-    Array<{ listing_status: string; last_pushed_stock: number | null; sync_error_message: string | null; product: { total_stock: number } }>;
+  const ls = must(await db().from('marketplace_listings').select('listing_status, last_pushed_stock, sync_error_message, product:products!inner(total_stock, safety_stock)').neq('listing_status', 'passive')) as unknown as
+    Array<{ listing_status: string; last_pushed_stock: number | null; sync_error_message: string | null; product: { total_stock: number; safety_stock: number | null } }>;
   const prodCount = must(await db().from('products').select('id, total_stock')) as Array<{ id: string; total_stock: number }>;
   const health = {
     products: prodCount.length,
     outOfStock: prodCount.filter((p) => p.total_stock <= 0).length,
     pending: ls.filter((l) => l.listing_status === 'pending').length,
     errors: ls.filter((l) => l.listing_status === 'error').length,
-    unsynced: ls.filter((l) => l.listing_status === 'active' && l.last_pushed_stock !== null && l.last_pushed_stock !== Math.max(0, l.product.total_stock)).length,
+    unsynced: ls.filter((l) => l.listing_status === 'active' && l.last_pushed_stock !== null && l.last_pushed_stock !== Math.max(0, l.product.total_stock - (l.product.safety_stock ?? 0))).length,
     // İş kuyruğu (tablo henüz kurulmadıysa 0)
     jobsFailed: (await db().from('sync_jobs').select('id', { count: 'exact', head: true }).eq('status', 'failed')).count ?? 0,
     jobsPending: (await db().from('sync_jobs').select('id', { count: 'exact', head: true }).in('status', ['pending', 'running'])).count ?? 0,
