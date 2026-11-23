@@ -6,6 +6,7 @@ import { MARKETPLACES, MARKETPLACE_META, ORDER_PREFIX, ORDER_STATUS_META, isMark
 import type { AdapterResult, MarketplaceAdapter, NormalizedOrder, ProductPayload, StockUpdate } from '@/lib/marketplaces/types';
 import { errorMessage } from '@/lib/marketplaces/http';
 import { computeOrderCosts, loadSettings } from '@/lib/fees/service';
+import { jobKey, noteResults } from './job-log';
 
 /* =====================================================================
  * Senkronizasyon Motoru
@@ -19,6 +20,14 @@ export interface ProductRow {
   id: string; sku: string; barcode: string; title: string; description: string; category: string; brand: string;
   vat_rate: number; price: number; list_price: number | null; cost_price: number; total_stock: number;
   low_stock_threshold: number; image_url: string | null; images: string[]; marketplace_attributes: Record<string, Record<string, unknown>>;
+  group_code?: string | null; variant_attrs?: Record<string, string> | null;
+}
+
+/** Seçenek değerlerini başlığa ekler: "Soya Mum" + {Koku: Vanilya} → "Soya Mum - Vanilya" (başlıkta zaten varsa eklemez) */
+export function variantTitle(title: string, attrs: Record<string, string> | null | undefined): string {
+  const vals = Object.values(attrs ?? {}).map((v) => String(v).trim()).filter(Boolean);
+  const missing = vals.filter((v) => !title.toLocaleLowerCase('tr-TR').includes(v.toLocaleLowerCase('tr-TR')));
+  return missing.length ? `${title} - ${missing.join(' / ')}` : title;
 }
 
 interface CredentialRow {
@@ -74,7 +83,8 @@ export function toPayload(p: ProductRow, mp: MarketplaceName, l?: ListingOverrid
   const images = [...(p.images ?? []), ...(p.image_url ? [p.image_url] : [])].filter((v, i, a) => v && a.indexOf(v) === i);
   const price = l?.price_override != null ? Number(l.price_override) : Number(p.price);
   return {
-    sku: p.sku, barcode: p.barcode, title: p.title, description: p.description, category: p.category, brand: p.brand,
+    sku: p.sku, barcode: p.barcode, groupCode: p.group_code || p.sku, variantAttributes: p.variant_attrs ?? {},
+    title: variantTitle(p.title, p.variant_attrs), description: p.description, category: p.category, brand: p.brand,
     vatRate: Number(p.vat_rate), price, listPrice: Math.max(price, Number(p.list_price ?? p.price)), costPrice: Number(p.cost_price),
     stock: p.total_stock, images,
     attributes: {
@@ -121,8 +131,39 @@ export async function publishProduct(productId: string, marketplaces: Marketplac
     }).eq('product_id', productId).eq('marketplace_name', mp);
     await log(res.ok ? 'success' : 'error', 'listing', mp,
       `${MARKETPLACE_META[mp].label} ← ${product.sku} ${res.ok ? (res.status === 'pending' ? 'onaya gönderildi' : 'yayınlandı') : 'yayınlanamadı'}: ${res.message}`);
+    await noteResults([{ key: jobKey.publish(productId, mp), kind: 'publish', mp, ref: productId, payload: { label: product.sku }, ok: res.ok, error: res.message }]);
   }));
   return results;
+}
+
+// ---------------------------------------------------------------------
+// İçerik güncellemesi (başlık, açıklama, görseller) → yayındaki ilanlar
+// ---------------------------------------------------------------------
+export async function pushContent(productId: string, only?: MarketplaceName[]): Promise<Record<string, { ok: boolean; message: string }>> {
+  const product = must(await db().from('products').select('*').eq('id', productId).single()) as ProductRow;
+  const listings = must(await db().from('marketplace_listings').select('marketplace_name, external_product_id, price_override, handling_days, same_day_tag, fast_tag, listing_status').eq('product_id', productId).in('listing_status', ['active', 'pending'])) as Array<ListingOverrides & { marketplace_name: string; external_product_id: string | null }>;
+  const adapters = await loadAdapters();
+  const content: Record<string, { ok: boolean; message: string }> = {};
+  for (const l of listings) {
+    if (!isMarketplace(l.marketplace_name) || (only && !only.includes(l.marketplace_name))) continue;
+    const mp = l.marketplace_name;
+    const a = adapters.get(mp)?.adapter;
+    if (!a) continue;
+    if (!a.updateProduct) {
+      content[mp] = { ok: false, message: `${MARKETPLACE_META[mp].label} API'si içerik güncellemesini desteklemiyor — fiyat ve stok gönderildi.` };
+      continue;
+    }
+    let r: AdapterResult;
+    try {
+      r = await a.updateProduct(toPayload(product, mp, l), l.external_product_id);
+    } catch (e) {
+      r = { ok: false, message: errorMessage(e) };
+    }
+    content[mp] = { ok: r.ok, message: r.message };
+    await log(r.ok ? 'success' : 'error', 'listing', mp, `${MARKETPLACE_META[mp].label} ← ${product.sku} içerik güncellemesi: ${r.message}`);
+    await noteResults([{ key: jobKey.content(productId, mp), kind: 'update_product', mp, ref: productId, payload: { label: product.sku }, ok: r.ok, error: r.message }]);
+  }
+  return content;
 }
 
 // ---------------------------------------------------------------------
@@ -130,11 +171,11 @@ export async function publishProduct(productId: string, marketplaces: Marketplac
 // ---------------------------------------------------------------------
 export interface PushSummary { [mp: string]: { ok: boolean; count: number; message: string } }
 
-export async function pushStock(productIds: string[], sourceMarketplace: MarketplaceName | null = null): Promise<PushSummary> {
+export async function pushStock(productIds: string[], sourceMarketplace: MarketplaceName | null = null, only?: MarketplaceName[]): Promise<PushSummary> {
   if (!productIds.length) return {};
   if (productIds.length > 100) {
     const merged: PushSummary = {};
-    for (let i = 0; i < productIds.length; i += 100) Object.assign(merged, await pushStock(productIds.slice(i, i + 100), sourceMarketplace));
+    for (let i = 0; i < productIds.length; i += 100) Object.assign(merged, await pushStock(productIds.slice(i, i + 100), sourceMarketplace, only));
     return merged;
   }
   const listings = must(await db()
@@ -149,6 +190,7 @@ export async function pushStock(productIds: string[], sourceMarketplace: Marketp
   const byMp = new Map<MarketplaceName, typeof listings>();
   for (const l of listings) {
     if (!isMarketplace(l.marketplace_name)) continue;
+    if (only && !only.includes(l.marketplace_name)) continue;
     byMp.set(l.marketplace_name, [...(byMp.get(l.marketplace_name) ?? []), l]);
   }
   if (!byMp.size) return {};
@@ -177,11 +219,12 @@ export async function pushStock(productIds: string[], sourceMarketplace: Marketp
       ? { last_pushed_stock: l.product.total_stock, last_synced_at: now, sync_error_message: null }
       : { sync_error_message: `Stok gönderilemedi: ${res.message}`, last_synced_at: now }).eq('id', l.id)));
     summary[mp] = { ok: res.ok, count: items.length, message: res.message };
+    await noteResults(ls.map((l) => ({ key: jobKey.stock(l.product.id, mp), kind: 'push_stock' as const, mp, ref: l.product.id, payload: { label: l.product.sku }, ok: res.ok, error: res.message })));
     const detail = items.map((i) => `${i.sku} = ${i.quantity}`).join(', ');
     await log(res.ok ? 'success' : 'error', 'stock', mp,
       res.ok
         ? `${MARKETPLACE_META[mp].label} ← stok güncellendi: ${detail}${mp === sourceMarketplace ? ' (kaynak pazaryeri doğrulama)' : ''}`
-        : `${MARKETPLACE_META[mp].label} ← stok GÖNDERİLEMEDİ (${detail}): ${res.message}. Cron ile tekrar denenecek.`);
+        : `${MARKETPLACE_META[mp].label} ← stok GÖNDERİLEMEDİ (${detail}): ${res.message}. Otomatik olarak tekrar denenecek.`);
   }));
   return summary;
 }
@@ -254,12 +297,51 @@ export async function recompute(orderIds: string[]) {
   }
 }
 
-/** Siparişi kargoya verildi olarak işaretler (Bugün Kargoda / termin kontrolü bu zamana göre yapılır) */
-export async function markShipped(orderId: string, at?: string) {
+export interface ShipInfo { trackingNumber?: string | null; carrier?: string | null; invoiceNumber?: string | null }
+export interface RemoteStatusResult { ok: boolean; message: string; unsupported?: boolean }
+
+/**
+ * Paneldeki sipariş durumunu siparişin geldiği pazaryerine bildirir.
+ * Hata siparişin paneldeki durumunu geri almaz; günlüğe yazılır ve kullanıcıya gösterilir.
+ */
+export async function pushOrderStatus(orderId: string, status: OrderStatus, info: ShipInfo = {}): Promise<RemoteStatusResult> {
+  const order = must(await db().from('orders').select('external_order_id, marketplace_name, raw, items:order_items(sku, quantity)').eq('id', orderId).single()) as
+    { external_order_id: string; marketplace_name: MarketplaceName; raw: unknown; items: Array<{ sku: string; quantity: number }> };
+  const mp = order.marketplace_name;
+  const label = MARKETPLACE_META[mp].label;
+  if ((order.raw as { simulated?: boolean } | null)?.simulated) return { ok: true, message: 'Simülasyon siparişi — pazaryerine gönderilmedi.', unsupported: true };
+  const adapter = (await loadAdapters()).get(mp)?.adapter;
+  if (!adapter) {
+    const message = `${label} bağlı değil; durum yalnızca panelde değişti.`;
+    await noteResults([{ key: jobKey.order(orderId), kind: 'order_status', mp, ref: orderId, payload: { label: `#${order.external_order_id.split('/')[0]} → ${ORDER_STATUS_META[status].label}`, status, info }, ok: false, error: message, retryable: false }]);
+    return { ok: false, message };
+  }
+  if (!adapter.updateOrderStatus) return { ok: false, unsupported: true, message: `${label} için durum gönderimi yok.` };
+  let res: RemoteStatusResult;
+  try {
+    res = await adapter.updateOrderStatus({ externalOrderId: order.external_order_id, status, raw: order.raw, items: order.items, ...info });
+  } catch (e) {
+    res = { ok: false, message: errorMessage(e) };
+  }
+  const no = order.external_order_id.split('/')[0];
+  await noteResults([{
+    key: jobKey.order(orderId), kind: 'order_status', mp, ref: orderId,
+    payload: { label: `#${no} → ${ORDER_STATUS_META[status].label}`, status, info },
+    ok: res.ok || !!res.unsupported, error: res.message,
+  }]);
+  await log(res.ok ? 'success' : res.unsupported ? 'info' : 'error', 'order', mp,
+    res.ok ? `${label} ← #${no} ${ORDER_STATUS_META[status].label}: ${res.message}`
+      : res.unsupported ? `${label} ← #${no}: ${res.message}` : `${label} ← #${no} durumu GÖNDERİLEMEDİ: ${res.message}`);
+  return res;
+}
+
+/** Siparişi kargoya verildi olarak işaretler (Bugün Kargoda / termin kontrolü bu zamana göre yapılır) ve pazaryerine bildirir */
+export async function markShipped(orderId: string, at?: string, info: ShipInfo = {}) {
   const order = must(await db().from('orders').select('external_order_id, marketplace_name, status').eq('id', orderId).single()) as { external_order_id: string; marketplace_name: MarketplaceName; status: OrderStatus };
   if (order.status === 'cancelled') throw new Error('İptal edilmiş sipariş kargoya verilemez.');
   const shippedAt = at ?? new Date().toISOString();
   const u: Record<string, unknown> = { shipped_at: shippedAt };
+  if (info.carrier) u.carrier = info.carrier;
   if (order.status === 'new' || order.status === 'preparing') u.status = 'shipped';
   must(await db().from('orders').update(u).eq('id', orderId).select('id'));
   await recompute([orderId]);
@@ -268,17 +350,20 @@ export async function markShipped(orderId: string, at?: string) {
   const speed = cost?.same_day_eligible ? (cost.same_day_met ? 'aynı gün ✓' : 'aynı gün kaçırıldı ✗') : cost?.fast_eligible ? (cost.fast_met ? 'termin içinde ✓' : 'termin aşıldı ✗') : 'standart';
   await log(cost?.same_day_met === false || cost?.fast_met === false ? 'warning' : 'success', 'order', order.marketplace_name,
     `#${order.external_order_id} kargoya verildi (${speed}) — net kâr ${cost?.net_profit ?? '-'} ₺`);
-  return cost;
+  const remote = await pushOrderStatus(orderId, 'shipped', info);
+  return { cost, remote };
 }
 
-export async function changeOrderStatus(orderId: string, status: OrderStatus) {
+export async function changeOrderStatus(orderId: string, status: OrderStatus, info: ShipInfo = {}) {
   const res = must(await db().rpc('set_order_status', { p_order_id: orderId, p_status: status })) as { affected_product_ids: string[] };
   const order = must(await db().from('orders').select('external_order_id, marketplace_name').eq('id', orderId).single()) as { external_order_id: string; marketplace_name: MarketplaceName };
   await log(status === 'cancelled' ? 'warning' : 'info', 'order', order.marketplace_name,
     `#${order.external_order_id} durumu → ${ORDER_STATUS_META[status].label}${res.affected_product_ids.length ? ' (stok havuza iade edildi)' : ''}`);
   if (res.affected_product_ids.length) await pushStock(res.affected_product_ids, null);
+  if (status === 'shipped') await db().from('orders').update({ shipped_at: new Date().toISOString() }).eq('id', orderId).is('shipped_at', null);
   await recompute([orderId]);
-  return res;
+  const remote = await pushOrderStatus(orderId, status, info);
+  return { ...res, remote };
 }
 
 // ---------------------------------------------------------------------

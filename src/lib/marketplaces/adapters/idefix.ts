@@ -1,9 +1,8 @@
 import type { OrderStatus } from '../meta';
 import type {
-  AdapterResult, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder,
-  ProductPayload, RemoteProduct, StockUpdate,
+  AdapterResult, BrandOption, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { chunk, dateWindows, errorMessage, num, request, str } from '../http';
+import { cachedCategories, chunk, dateWindows, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
 
 /**
  * idefix Pazaryeri API adaptörü.
@@ -50,7 +49,7 @@ export class IdefixAdapter implements MarketplaceAdapter {
         method: 'POST', headers: this.headers,
         json: {
           products: [{
-            barcode: p.barcode, title: p.title, productMainId: p.sku, brandId, categoryId, inventoryQuantity: Math.max(0, p.stock),
+            barcode: p.barcode, title: p.title, productMainId: p.groupCode, brandId, categoryId, inventoryQuantity: Math.max(0, p.stock),
             vendorStockCode: p.sku, description: p.description || p.title, price: p.price, comparePrice: p.listPrice, vatRate: p.vatRate,
             deliveryDuration: num(a.handlingDays, 1), deliveryType: a.sameDay ? 'same_day_shipping' : 'regular',
             images: p.images.map((url) => ({ url })), attributes: Array.isArray(a.attributes) ? a.attributes : [],
@@ -134,6 +133,68 @@ export class IdefixAdapter implements MarketplaceAdapter {
       externalId: str(p.barcode), sku: str(p.vendorStockCode), barcode: str(p.barcode), title: str(p.title), description: '', category: '', brand: '',
       vatRate: 20, price: num(p.price), listPrice: num(p.comparePrice), costPrice: 0, stock: num(p.inventoryQuantity), images: [], attributes: {},
     }));
+  }
+
+  /**
+   * Sipariş durumu → idefix sevkiyat durumu (picking / invoiced / shipped / cancelled).
+   * Yol Ayarlar > Gelişmiş'te (orderStatusPath) değiştirilebilir. Gerçek hesapla doğrulanmadı.
+   */
+  async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
+    const s = rec(u.raw);
+    const shipmentId = str(s.id) || u.externalOrderId.split('/')[1];
+    if (!shipmentId) return { ok: false, message: 'idefix sevkiyat numarası bulunamadı (sipariş yeniden senkronlanmalı).' };
+    const items = recs(s.items ?? s.lines).map((l) => ({ id: num(l.id ?? l.lineId), quantity: num(l.quantity, 1) })).filter((l) => l.id);
+    const map: Partial<Record<string, string>> = { preparing: u.invoiceNumber ? 'invoiced' : 'picking', shipped: 'shipped', cancelled: 'unsupplied' };
+    const target = map[u.status];
+    if (!target) return notSupported(u.status === 'delivered' ? 'idefix\'te teslimat bilgisi kargo firmasından otomatik gelir.' : 'Bu durum idefix\'e gönderilemez.');
+    if (u.status === 'shipped' && !u.trackingNumber) return notSupported('idefix anlaşmalı kargoda "Kargoda" bilgisi otomatik gelir. Kendi kargonuzla gönderiyorsanız takip numarası girin.');
+    try {
+      const path = (str(this.c.extra.orderStatusPath) || '/oms/{vendorId}/{shipmentId}/update-shipment-status')
+        .replace('{vendorId}', encodeURIComponent(this.c.sellerId)).replace('{shipmentId}', encodeURIComponent(shipmentId));
+      await request(`${this.base}${path}`, {
+        method: 'PUT', headers: this.headers,
+        json: {
+          status: target, items,
+          ...(u.invoiceNumber ? { invoiceNumber: u.invoiceNumber } : {}),
+          ...(u.trackingNumber ? { trackingNumber: u.trackingNumber, cargoCompany: u.carrier ?? undefined } : {}),
+        },
+      });
+      return { ok: true, message: `idefix\'te sevkiyat durumu "${target}" yapıldı.` };
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
+  }
+
+  /** idefix kategori araması (yol Ayarlar > Gelişmiş: categoriesPath) */
+  async searchCategories(q: string): Promise<CategoryOption[]> {
+    const all = await cachedCategories('idefix', async () => {
+      const res = await request<unknown>(`${this.base}${this.path('categoriesPath', '/pim/product-category')}`, { headers: this.headers });
+      return flattenCategories(Array.isArray(res) ? res : rec(res).categories ?? rec(res).items ?? rec(res).data);
+    });
+    return searchIn(all, q);
+  }
+
+  /** idefix marka araması (yol Ayarlar > Gelişmiş: brandsPath) */
+  async searchBrands(q: string): Promise<BrandOption[]> {
+    const res = await request<unknown>(`${this.base}${this.path('brandsPath', '/pim/brand')}?title=${encodeURIComponent(q)}&page=0&limit=30`, { headers: this.headers });
+    return recs(Array.isArray(res) ? res : rec(res).brands ?? rec(res).items ?? rec(res).data)
+      .map((b) => ({ id: num(b.id), name: str(b.title ?? b.name) })).filter((b) => b.id);
+  }
+
+  /** İçerik güncellemesi (yol Ayarlar > Gelişmiş: productUpdatePath) */
+  async updateProduct(p: ProductPayload): Promise<AdapterResult> {
+    try {
+      const res = await request<{ batchRequestId?: string }>(`${this.base}${this.path('productUpdatePath', '/pim/pool/{vendorId}/update')}`, {
+        method: 'POST', headers: this.headers,
+        json: { products: [{
+          barcode: p.barcode, title: p.title, productMainId: p.groupCode, vendorStockCode: p.sku, description: p.description || p.title,
+          images: p.images.map((url) => ({ url })), ...(Array.isArray(p.attributes.attributes) ? { attributes: p.attributes.attributes } : {}),
+        }] },
+      });
+      return { ok: true, status: 'pending', ref: res?.batchRequestId ?? null, message: 'İçerik güncellemesi idefix\'e gönderildi.' };
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
   }
 }
 

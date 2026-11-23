@@ -8,7 +8,11 @@ export interface Product {
   id: string; sku: string; barcode: string; title: string; brand: string; category: string; vat_rate: number; price: number; cost_price: number; created_at: string;
   total_stock: number; low_stock_threshold: number; image_url: string | null; images: string[]; listings: Listing[];
   cost_vat_rate: number | null; desi: number; packaging_cost: number; profits: Record<string, Profit>;
+  group_code?: string | null; variant_attrs?: Record<string, string> | null;
 }
+
+/** Seçenek etiketi: {Renk: Kırmızı, Beden: M} → "Kırmızı / M" */
+export const variantText = (a?: Record<string, string> | null) => Object.values(a ?? {}).filter(Boolean).join(' / ');
 
 export const STATUS_STYLE: Record<LStatus, string> = {
   active: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',

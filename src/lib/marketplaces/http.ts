@@ -12,7 +12,7 @@ export class MarketplaceApiError extends Error {
 }
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
   json?: unknown;
   body?: BodyInit;
@@ -99,3 +99,75 @@ export const num = (v: unknown, fallback = 0) => {
   const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(',', '.'));
   return Number.isFinite(n) ? n : fallback;
 };
+
+/** Ham JSON içinden güvenle alan okuma (pazaryeri yanıtları için) */
+export type Rec = Record<string, unknown>;
+export const rec = (v: unknown): Rec => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Rec) : {});
+export const recs = (v: unknown): Rec[] => (Array.isArray(v) ? v.map(rec) : []);
+
+/** Pazaryerinin bu durumu API ile kabul etmediği durumlar için açıklayıcı sonuç */
+export const notSupported = (message: string) => ({ ok: false, message, unsupported: true as const });
+
+/**
+ * Pazaryeri kategori ağacını "Ana › Alt › Yaprak" yollu düz listeye çevirir (yalnızca yaprak kategoriler).
+ * Hem iç içe (children/subCategories) hem düz (parentId'li) yapıları destekler.
+ */
+export function flattenCategories(
+  nodes: unknown,
+  keys: { id?: string[]; name?: string[]; children?: string[]; parent?: string[]; leaf?: string[] } = {},
+): Array<{ id: string | number; name: string; path: string }> {
+  const idK = keys.id ?? ['id', 'categoryId', 'code'];
+  const nameK = keys.name ?? ['name', 'label', 'title', 'displayName'];
+  const childK = keys.children ?? ['subCategories', 'children', 'subcategories', 'childCategories'];
+  const parentK = keys.parent ?? ['parentId', 'parent_code', 'parentCategoryId'];
+  const leafK = keys.leaf ?? ['leaf', 'isLeaf'];
+  const pick = (o: Rec, ks: string[]) => { for (const k of ks) if (o[k] !== undefined && o[k] !== null && o[k] !== '') return o[k]; return undefined; };
+  const out: Array<{ id: string | number; name: string; path: string }> = [];
+  const list = recs(nodes);
+  const nested = list.some((n) => recs(pick(n, childK)).length > 0);
+  if (nested || !list.some((n) => pick(n, parentK) !== undefined)) {
+    const walk = (arr: Rec[], parents: string[]) => {
+      for (const n of arr) {
+        const name = str(pick(n, nameK));
+        const path = [...parents, name];
+        const kids = recs(pick(n, childK));
+        if (kids.length) walk(kids, path);
+        else out.push({ id: pick(n, idK) as string | number, name, path: path.join(' › ') });
+      }
+    };
+    walk(list, []);
+    return out.filter((c) => c.id !== undefined);
+  }
+  // Düz liste: parentId ile yolu kur, çocuğu olmayanları (veya leaf=true) al
+  const byId = new Map(list.map((n) => [str(pick(n, idK)), n]));
+  const hasChild = new Set(list.map((n) => str(pick(n, parentK))).filter(Boolean));
+  for (const n of list) {
+    const id = str(pick(n, idK));
+    const leafFlag = pick(n, leafK);
+    if (leafFlag === false || (leafFlag === undefined && hasChild.has(id))) continue;
+    const names: string[] = [];
+    let cur: Rec | undefined = n;
+    for (let guard = 0; cur && guard < 12; guard++) {
+      names.unshift(str(pick(cur, nameK)));
+      const p = str(pick(cur, parentK));
+      cur = p ? byId.get(p) : undefined;
+    }
+    out.push({ id: pick(n, idK) as string | number, name: str(pick(n, nameK)), path: names.join(' › ') });
+  }
+  return out;
+}
+
+/** Kategori listelerini 6 saat önbellekte tutar (tüm mağazalar için aynı katalog) */
+const catCache = new Map<string, { exp: number; items: Array<{ id: string | number; name: string; path: string }> }>();
+export async function cachedCategories(key: string, load: () => Promise<Array<{ id: string | number; name: string; path: string }>>) {
+  const hit = catCache.get(key);
+  if (hit && hit.exp > Date.now()) return hit.items;
+  const items = await load();
+  if (items.length) catCache.set(key, { exp: Date.now() + 6 * 3600_000, items });
+  return items;
+}
+
+export function searchIn<T extends { path: string }>(items: T[], q: string, limit = 40): T[] {
+  const words = q.toLocaleLowerCase('tr-TR').split(/\s+/).filter(Boolean);
+  return items.filter((c) => { const p = c.path.toLocaleLowerCase('tr-TR'); return words.every((w) => p.includes(w)); }).slice(0, limit);
+}

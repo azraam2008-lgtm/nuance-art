@@ -1,9 +1,8 @@
 import type { OrderStatus } from '../meta';
 import type {
-  AdapterResult, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder,
-  ProductPayload, RemoteProduct, StockUpdate,
+  AdapterResult, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { errorMessage, num, request, str } from '../http';
+import { cachedCategories, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
 
 /**
  * Etsy Open API v3 adaptörü.
@@ -78,8 +77,12 @@ export class EtsyAdapter implements MarketplaceAdapter {
           taxonomy_id: taxonomyId, shipping_profile_id: shippingProfileId, sku: [p.sku], type: 'physical', state: 'draft',
         },
       });
+      let imgNote = '';
+      if (res?.listing_id && p.images.length) {
+        imgNote = await this.uploadImages(String(res.listing_id), p.images).then(() => ' Fotoğraflar yüklendi.', (e) => ` Fotoğraflar yüklenemedi: ${errorMessage(e)}.`);
+      }
       return { ok: true, status: 'pending', externalId: res?.listing_id != null ? String(res.listing_id) : null,
-        message: 'Etsy\'de taslak ilan oluşturuldu. Görselleri ekleyip panelden yayına alın (Etsy taslakları otomatik yayınlamaz).' };
+        message: `Etsy'de taslak ilan oluşturuldu.${imgNote} Etsy taslakları otomatik yayınlamaz; Etsy Shop Manager'dan "Publish" deyin.` };
     } catch (e) {
       return { ok: false, status: 'error', message: errorMessage(e) };
     }
@@ -150,6 +153,61 @@ export class EtsyAdapter implements MarketplaceAdapter {
       return { externalId: String(l.listing_id), sku: l.skus?.[0] ?? String(l.listing_id), barcode: l.skus?.[0] ?? String(l.listing_id), title: str(l.title), description: str(l.description),
         category: '', brand: '', vatRate: 0, price, listPrice: price, costPrice: 0, stock: num(l.quantity), images: [], attributes: {} };
     });
+  }
+
+  /** Sipariş durumu → Etsy. Yalnızca "Kargoda" bildirilebilir (takip numarası varsa alıcıya iletilir). */
+  async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
+    if (u.status !== 'shipped') {
+      return notSupported(u.status === 'cancelled' ? 'Etsy\'de iptal/iade Etsy Shop Manager\'dan yapılır. Stok panelde iade edildi.' : 'Etsy yalnızca "Kargoda" bilgisini kabul eder.');
+    }
+    try {
+      const receiptId = str(rec(u.raw).receipt_id) || u.externalOrderId;
+      await request(`${this.base}/shops/${this.shop}/receipts/${encodeURIComponent(receiptId)}/tracking`, {
+        method: 'POST', headers: await this.headers(),
+        json: { ...(u.trackingNumber ? { tracking_code: u.trackingNumber } : {}), ...(u.carrier ? { carrier_name: u.carrier } : {}), send_bcc: false },
+      });
+      return { ok: true, message: 'Etsy\'de sipariş "gönderildi" yapıldı.' };
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
+  }
+
+  /** Etsy kategori (taxonomy) araması */
+  async searchCategories(q: string): Promise<CategoryOption[]> {
+    const all = await cachedCategories('etsy', async () => {
+      const res = await request<{ results?: unknown[] }>(`${this.base}/seller-taxonomy/nodes`, { headers: await this.headers(false) });
+      return flattenCategories(res?.results ?? [], { children: ['children'] });
+    });
+    return searchIn(all, q);
+  }
+
+  /** Görselleri Etsy ilanına yükler (Etsy URL kabul etmez; dosya olarak gönderilir) */
+  private async uploadImages(listingId: string, urls: string[]) {
+    const h = await this.headers();
+    for (const [i, url] of urls.slice(0, 10).entries()) {
+      const img = await fetch(url, { cache: 'no-store' });
+      if (!img.ok) continue;
+      const form = new FormData();
+      form.append('image', new Blob([await img.arrayBuffer()], { type: img.headers.get('content-type') ?? 'image/jpeg' }), `foto-${i + 1}.jpg`);
+      form.append('rank', String(i + 1));
+      await request(`${this.base}/shops/${this.shop}/listings/${encodeURIComponent(listingId)}/images`, { method: 'POST', headers: h, body: form });
+    }
+  }
+
+  /** İçerik güncellemesi: başlık/açıklama; ilanda hiç görsel yoksa görseller de yüklenir */
+  async updateProduct(p: ProductPayload, externalId: string | null): Promise<AdapterResult> {
+    if (!externalId) return { ok: false, message: 'Etsy ilan numarası yok.' };
+    try {
+      const h = await this.headers();
+      await request(`${this.base}/shops/${this.shop}/listings/${encodeURIComponent(externalId)}`, {
+        method: 'PATCH', headers: h, json: { title: p.title.slice(0, 140), description: p.description || p.title },
+      });
+      const imgs = await request<{ count?: number }>(`${this.base}/listings/${encodeURIComponent(externalId)}/images`, { headers: h });
+      if (!imgs?.count && p.images.length) await this.uploadImages(externalId, p.images);
+      return { ok: true, message: `Etsy ilanı güncellendi${!imgs?.count && p.images.length ? ' (görseller yüklendi)' : ''}.` };
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
   }
 }
 

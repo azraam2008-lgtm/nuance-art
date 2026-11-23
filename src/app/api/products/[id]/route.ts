@@ -1,10 +1,9 @@
 import { handle, HttpError, readJson, requireNumber, requireString } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
-import { isMarketplace, MARKETPLACE_META } from '@/lib/marketplaces/meta';
-import { errorMessage } from '@/lib/marketplaces/http';
+import { isMarketplace } from '@/lib/marketplaces/meta';
 import { computeOrderCosts } from '@/lib/fees/service';
 import { profitsFor } from '@/lib/fees/listing-profit';
-import { loadAdapters, log, pushStock, toPayload, type ProductRow } from '@/lib/sync/engine';
+import { log, pushContent, pushStock, type ProductRow } from '@/lib/sync/engine';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -24,7 +23,12 @@ export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: str
     by[k] = { units: (by[k]?.units ?? 0) + s.quantity, revenue: (by[k]?.revenue ?? 0) + s.quantity * Number(s.unit_price) };
   }
   const [withProfit] = await profitsFor([product as Parameters<typeof profitsFor>[0][number]]);
-  return { product: withProfit, movements, sales30: by };
+  // Aynı ürünün diğer seçenekleri (varyantlar)
+  const group = (product as { group_code?: string | null }).group_code;
+  const siblings = group
+    ? must(await db().from('products').select('id, sku, variant_attrs, total_stock, price').eq('group_code', group).order('created_at')) as Array<{ id: string }>
+    : [];
+  return { product: withProfit, movements, sales30: by, siblings };
 });
 
 /**
@@ -69,26 +73,13 @@ export const PUT = handle(async (req: Request, ctx: { params: Promise<{ id: stri
 
   // İçerik: destekleyen pazaryerlerine
   const contentChanged = ['title', 'description', 'images', 'brand', 'marketplace_attributes'].some((k) => k in u);
-  const content: Record<string, { ok: boolean; message: string }> = {};
-  if (contentChanged) {
-    const listings = must(await db().from('marketplace_listings').select('marketplace_name, external_product_id, price_override, handling_days, same_day_tag, fast_tag, listing_status').eq('product_id', id).in('listing_status', ['active', 'pending'])) as Array<{ marketplace_name: string; external_product_id: string | null; price_override: number | null; handling_days: number; same_day_tag: boolean; fast_tag: boolean }>;
-    const adapters = await loadAdapters();
-    for (const l of listings) {
-      if (!isMarketplace(l.marketplace_name)) continue;
-      const a = adapters.get(l.marketplace_name)?.adapter;
-      if (!a) continue;
-      if (!a.updateProduct) {
-        content[l.marketplace_name] = { ok: false, message: `${MARKETPLACE_META[l.marketplace_name].label} API'si içerik güncellemesini desteklemiyor — fiyat ve stok gönderildi; başlık/görsel değişikliğini panelden yapın.` };
-        continue;
-      }
-      try {
-        const r = await a.updateProduct(toPayload(product, l.marketplace_name, l), l.external_product_id);
-        content[l.marketplace_name] = { ok: r.ok, message: r.message };
-        await log(r.ok ? 'success' : 'error', 'listing', l.marketplace_name, `${MARKETPLACE_META[l.marketplace_name].label} ← ${product.sku} içerik güncellemesi: ${r.message}`);
-      } catch (e) {
-        content[l.marketplace_name] = { ok: false, message: errorMessage(e) };
-      }
-    }
+  const content = contentChanged ? await pushContent(id) : {};
+
+  // Seçenekli ürün: başlık, açıklama, marka ve kategori tüm seçeneklerde ortaktır → diğer seçeneklere de uygula
+  const shared = Object.fromEntries(Object.entries(u).filter(([k]) => ['title', 'description', 'brand', 'category'].includes(k)));
+  if (before.group_code && Object.keys(shared).length) {
+    const sibs = must(await db().from('products').update(shared).eq('group_code', before.group_code).neq('id', id).select('id')) as Array<{ id: string }>;
+    for (const sib of sibs) await pushContent(sib.id);
   }
 
   // Fiyat/maliyet değiştiyse bekleyen siparişlerin tahmini kârını tazele

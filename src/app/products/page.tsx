@@ -6,8 +6,8 @@ import ProductCostModal, { type ProductCfg } from '@/components/ProductCostModal
 import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Empty, ErrorBox, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
-import TrendyolImport from '@/components/TrendyolImport';
-import { STATUS_LABEL, STATUS_STYLE, stockSynced, type Product } from '@/components/product-shared';
+import MarketplaceImport from '@/components/MarketplaceImport';
+import { STATUS_LABEL, STATUS_STYLE, stockSynced, variantText, type Product } from '@/components/product-shared';
 
 function Thumb({ p, className }: { p: Product; className?: string }) {
   return p.image_url
@@ -29,13 +29,13 @@ export default function ProductsPage() {
   const [costFor, setCostFor] = useState<ProductCfg | null>(null);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'all' | 'low' | 'error' | 'pending'>('all');
-  const [tyConnected, setTyConnected] = useState(false);
+  const [connected, setConnected] = useState<MarketplaceName[]>([]);
   const toast = useToast();
   const { bump } = useLive();
 
   useEffect(() => {
     api<{ credentials: Array<{ marketplace: string; mode: string }> }>('/api/credentials')
-      .then((r) => setTyConnected(r.credentials.some((c) => c.marketplace === 'trendyol' && c.mode !== 'off'))).catch(() => {});
+      .then((r) => setConnected(r.credentials.filter((c) => c.mode !== 'off').map((c) => c.marketplace as MarketplaceName))).catch(() => {});
   }, []);
 
   async function sync(p: Product) {
@@ -58,7 +58,7 @@ export default function ProductsPage() {
   const rows = useMemo(() => {
     const needle = q.toLocaleLowerCase('tr-TR');
     return products.filter((p) => {
-      if (needle && ![p.title, p.sku, p.barcode, p.brand, p.category].some((x) => (x ?? '').toLocaleLowerCase('tr-TR').includes(needle))) return false;
+      if (needle && ![p.title, p.sku, p.barcode, p.brand, p.category, p.group_code ?? '', variantText(p.variant_attrs)].some((x) => (x ?? '').toLocaleLowerCase('tr-TR').includes(needle))) return false;
       if (filter === 'low') return p.total_stock < p.low_stock_threshold;
       if (filter === 'error') return p.listings.some((l) => l.listing_status === 'error' || !stockSynced(p, l));
       if (filter === 'pending') return p.listings.some((l) => l.listing_status === 'pending');
@@ -72,9 +72,9 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-4 sm:space-y-6 fade-in">
       <div className="flex flex-wrap gap-2 justify-end">
-        {tyConnected && <Button variant="secondary" onClick={() => setImportOpen(true)}><Download className="w-4 h-4" /> Trendyol&apos;daki ürünleri içe aktar</Button>}
+        {connected.length > 0 && <Button variant="secondary" onClick={() => setImportOpen(true)}><Download className="w-4 h-4" /> Pazaryerindeki ürünleri içe aktar</Button>}
         <Link href="/products/new" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white"><Plus className="w-4 h-4" /> Yeni Ürün Ekle</Link>
       </div>
 
@@ -83,7 +83,7 @@ export default function ProductsPage() {
       ) : (
         <>
           {recent.length > 0 && (
-            <section>
+            <section className="hidden md:block">
               <h2 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><Sparkles className="w-4 h-4 text-amber-500" /> Yeni eklenen ürünler <span className="text-xs font-normal text-slate-500">(son 14 gün)</span></h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
                 {recent.map((p) => (
@@ -92,7 +92,7 @@ export default function ProductsPage() {
                       <div className="flex gap-3 p-3">
                         <Thumb p={p} className="w-20 h-28 rounded-lg shrink-0" />
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium text-sm line-clamp-2">{p.title}</div>
+                          <div className="font-medium text-sm line-clamp-2">{p.title}{variantText(p.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(p.variant_attrs)}</span>}</div>
                           <div className="text-[11px] text-slate-500 mt-0.5">{p.sku} · {fmtDate(p.created_at)}</div>
                           <div className="flex items-center gap-2 mt-1.5"><span className="font-semibold text-sm">{tl2(p.price)}</span><StockPill p={p} /></div>
                           <div className="text-[11px] text-slate-500 mt-1">{p.images?.length ?? 0} fotoğraf</div>
@@ -125,9 +125,45 @@ export default function ProductsPage() {
               {([['all', 'Tümü', products.length], ['low', 'Kritik stok', counts.low], ['error', 'Senkron sorunu', counts.error], ['pending', 'Onay bekleyen', counts.pending]] as const).map(([k, label, c]) => (
                 <button key={k} onClick={() => setFilter(k)} className={cx('px-2.5 py-1 rounded-full text-xs border', filter === k ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600')}>{label} {c > 0 && <span className="opacity-70">({c})</span>}</button>
               ))}
-              <div className="relative ml-auto w-64"><Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" /><input className={`${inputClass} pl-9`} placeholder="Ad, SKU, barkod ara…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+              <div className="relative w-full sm:w-64 sm:ml-auto"><Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" /><input className={`${inputClass} pl-9`} placeholder="Ad, SKU, barkod ara…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
             </div>
-            <Card className="overflow-x-auto">
+            {/* Telefon: kart listesi */}
+            <div className="md:hidden space-y-2">
+              {!rows.length && <Card><Empty>Filtreye uyan ürün yok.</Empty></Card>}
+              {rows.map((p) => {
+                const issues = p.listings.filter((l) => l.listing_status === 'error' || !stockSynced(p, l));
+                const live = p.listings.filter((l) => l.listing_status !== 'passive');
+                return (
+                  <Card key={p.id} className="p-3">
+                    <Link href={`/products/${p.id}`} className="flex gap-3">
+                      <Thumb p={p} className="w-14 h-20 rounded-lg shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-sm line-clamp-2">{p.title}{variantText(p.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(p.variant_attrs)}</span>}</div>
+                        <div className="text-[11px] text-slate-500 font-mono truncate">{p.sku}</div>
+                        <div className="flex items-center gap-2 mt-1"><span className="font-semibold text-sm">{tl2(p.price)}</span><StockPill p={p} /></div>
+                      </div>
+                    </Link>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {live.map((l) => {
+                        const pr = p.profits?.[l.marketplace_name];
+                        return (
+                          <span key={l.marketplace_name} className={cx('px-1.5 py-0.5 rounded text-[10px]', STATUS_STYLE[l.listing_status], !stockSynced(p, l) && 'ring-2 ring-amber-400')}>
+                            <b>{MARKETPLACE_META[l.marketplace_name].label}</b>{pr && <> · <span className={pr.netProfit < 0 ? 'text-rose-700' : ''}>{tl2(pr.netProfit)}</span></>}
+                          </span>
+                        );
+                      })}
+                      {!live.length && <span className="text-xs text-slate-400">Yayında değil</span>}
+                    </div>
+                    {issues.length > 0 && <div className="text-[11px] text-rose-600 mt-1.5 flex items-start gap-1"><AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /><span>{issues.map((l) => MARKETPLACE_META[l.marketplace_name].label).join(', ')}: {issues[0].sync_error_message ?? 'stok eşitlenmedi'}</span></div>}
+                    <div className="flex justify-end gap-1 mt-1 -mb-1">
+                      <Button variant="ghost" className="text-xs" onClick={() => setCostFor(p)}><Calculator className="w-3.5 h-3.5" /> Maliyet</Button>
+                      <Button variant="ghost" className="text-xs" loading={busy === p.id} onClick={() => sync(p)}><RefreshCw className="w-3.5 h-3.5" /> Gönder</Button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+            <Card className="overflow-x-auto hidden md:block">
               {!rows.length ? <Empty>Filtreye uyan ürün yok.</Empty> : (
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
@@ -146,7 +182,7 @@ export default function ProductsPage() {
                           <td className="px-4 py-3">
                             <Link href={`/products/${p.id}`} className="flex items-center gap-3 group">
                               <Thumb p={p} className="w-10 h-14 rounded-lg shrink-0" />
-                              <div className="min-w-0"><div className="font-medium group-hover:text-indigo-700 line-clamp-2">{p.title}</div><div className="text-xs text-slate-500 font-mono">{p.sku} · {p.barcode}</div></div>
+                              <div className="min-w-0"><div className="font-medium group-hover:text-indigo-700 line-clamp-2">{p.title}{variantText(p.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(p.variant_attrs)}</span>}</div><div className="text-xs text-slate-500 font-mono">{p.sku} · {p.barcode}</div></div>
                             </Link>
                           </td>
                           <td className="px-4 py-3 text-right whitespace-nowrap"><div>{tl2(p.price)}</div><div className="text-xs text-slate-500">{tl2(p.cost_price)}</div></td>
@@ -183,7 +219,7 @@ export default function ProductsPage() {
         </>
       )}
       <ProductCostModal product={costFor} onClose={() => setCostFor(null)} />
-      {tyConnected && <TrendyolImport open={importOpen} onClose={() => setImportOpen(false)} />}
+      {connected.length > 0 && <MarketplaceImport open={importOpen} onClose={() => setImportOpen(false)} sources={connected} />}
     </div>
   );
 }

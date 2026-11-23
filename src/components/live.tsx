@@ -87,7 +87,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[60] space-y-2 max-w-sm">
+      <div className="fixed bottom-20 lg:bottom-4 left-3 right-3 sm:left-auto sm:right-4 z-[60] space-y-2 sm:max-w-sm">
         {items.map((t) => (
           <div key={t.id} className={`fade-in px-4 py-3 rounded-lg shadow-lg text-sm text-white ${t.kind === 'ok' ? 'bg-emerald-600' : t.kind === 'warn' ? 'bg-amber-600' : 'bg-rose-600'}`}>
             {t.text}

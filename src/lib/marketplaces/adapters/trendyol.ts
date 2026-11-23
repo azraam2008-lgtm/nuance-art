@@ -2,9 +2,9 @@ import type { OrderStatus } from '../meta';
 import type {
   AttributeDef, BrandOption, CategoryOption,
   AdapterResult, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder,
-  ProductPayload, RemoteProduct, StockUpdate,
+  OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { basicAuth, chunk, dateWindows, errorMessage, num, request, str } from '../http';
+import { basicAuth, chunk, dateWindows, errorMessage, notSupported, num, rec, recs, request, str } from '../http';
 
 /**
  * Trendyol Satıcı (Supplier) API adaptörü.
@@ -54,7 +54,7 @@ export class TrendyolAdapter implements MarketplaceAdapter {
       items: [{
         barcode: p.barcode,
         title: p.title.slice(0, 100),
-        productMainId: p.sku,
+        productMainId: p.groupCode,
         brandId,
         categoryId,
         quantity: Math.max(0, p.stock),
@@ -98,7 +98,7 @@ export class TrendyolAdapter implements MarketplaceAdapter {
       const res = await request<{ batchRequestId?: string }>(this.url('/product/sellers/{sellerId}/products'), {
         method: 'PUT', headers: this.headers,
         json: { items: [{
-          barcode: p.barcode, title: p.title.slice(0, 100), productMainId: p.sku, brandId, categoryId, stockCode: p.sku,
+          barcode: p.barcode, title: p.title.slice(0, 100), productMainId: p.groupCode, brandId, categoryId, stockCode: p.sku,
           dimensionalWeight: num(a.dimensionalWeight, 1), description: p.description || p.title, vatRate: p.vatRate,
           cargoCompanyId: num(a.cargoCompanyId ?? this.c.extra.cargoCompanyId) || undefined,
           images: p.images.slice(0, 8).map((url) => ({ url })), attributes: Array.isArray(a.attributes) ? a.attributes : [],
@@ -227,6 +227,7 @@ export class TrendyolAdapter implements MarketplaceAdapter {
     return (res?.content ?? []).map((p) => ({
       externalId: str(p.id || p.barcode),
       sku: str(p.stockCode || p.productMainId || p.barcode),
+      groupCode: str(p.productMainId) || undefined,
       barcode: str(p.barcode),
       title: str(p.title),
       description: str(p.description),
@@ -240,6 +241,51 @@ export class TrendyolAdapter implements MarketplaceAdapter {
       images: (p.images ?? []).map((i) => str(i.url)).filter(Boolean),
       attributes: { categoryId: p.pimCategoryId, brandId: p.brandId },
     }));
+  }
+
+  /**
+   * Sipariş durumu → Trendyol paket durumu.
+   *  Hazırlanıyor → "Picking" (fatura no verilirse "Invoiced"); İptal → tedarik edilemedi (UnSupplied).
+   *  Kargoda: Trendyol anlaşmalı kargoda paket kargo firması teslim alınca otomatik "Kargoda" olur;
+   *  kendi kargonuzla gönderiyorsanız takip numarası bildirilir.
+   */
+  async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
+    const pkg = rec(u.raw);
+    const pkgId = str(pkg.id) || u.externalOrderId.split('/')[1];
+    if (!pkgId) return { ok: false, message: 'Trendyol paket numarası bulunamadı (sipariş yeniden senkronlanmalı).' };
+    const lines = recs(pkg.lines).map((l) => ({ lineId: num(l.id), quantity: num(l.quantity, 1) })).filter((l) => l.lineId);
+    const base = this.url(`/order/sellers/{sellerId}/shipment-packages/${encodeURIComponent(pkgId)}`);
+    try {
+      switch (u.status) {
+        case 'preparing':
+          if (!lines.length) return { ok: false, message: 'Trendyol sipariş satırları bulunamadı.' };
+          await request(base, { method: 'PUT', headers: this.headers, json: { lines, params: {}, status: 'Picking' } });
+          if (u.invoiceNumber) {
+            await request(base, { method: 'PUT', headers: this.headers, json: { lines, params: { invoiceNumber: u.invoiceNumber }, status: 'Invoiced' } });
+          }
+          return { ok: true, message: `Trendyol'da "Hazırlanıyor" (Picking${u.invoiceNumber ? ' → Invoiced' : ''}) yapıldı.` };
+        case 'shipped':
+          if (u.trackingNumber) {
+            await request(`${base}/update-tracking-number`, { method: 'PUT', headers: this.headers, json: { trackingNumber: u.trackingNumber } });
+            return { ok: true, message: `Trendyol'a kargo takip numarası bildirildi (${u.trackingNumber}).` };
+          }
+          return notSupported('Trendyol\'da paket, kargo firması teslim aldığında otomatik "Kargoda" olur. Kendi kargonuzla gönderiyorsanız takip numarası girin.');
+        case 'delivered': {
+          const tracking = u.trackingNumber || str(pkg.cargoTrackingNumber);
+          if (!tracking) return notSupported('Trendyol teslimatı kargo firmasından otomatik alır.');
+          await request(this.url(`/order/sellers/{sellerId}/manual-deliver/${encodeURIComponent(tracking)}`), { method: 'PUT', headers: this.headers });
+          return { ok: true, message: 'Trendyol\'a "Teslim edildi" bildirildi.' };
+        }
+        case 'cancelled':
+          if (!lines.length) return { ok: false, message: 'Trendyol sipariş satırları bulunamadı.' };
+          await request(`${base}/items/unsupplied`, { method: 'PUT', headers: this.headers, json: { lines, reasonId: num(this.c.extra.cancelReasonId, 500) } });
+          return { ok: true, message: 'Trendyol\'da sipariş "tedarik edilemedi" olarak iptal edildi.' };
+        default:
+          return notSupported('Trendyol\'da sipariş "Yeni" durumuna geri alınamaz.');
+      }
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
   }
 }
 

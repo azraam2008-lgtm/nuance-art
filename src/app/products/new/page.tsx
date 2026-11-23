@@ -12,6 +12,7 @@ import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta'
 import { CARRIERS_BY_MARKETPLACE } from '@/lib/fees/carriers';
 import { DEFAULT_COMMISSION } from '@/lib/fees/commission-defaults';
 import type { ListingDefaults } from '@/lib/marketplaces/guides';
+import { EMPTY_VARIANTS, VariantOptionsEditor, VariantRowsEditor, variantLabel, variantProblems, type VariantState } from '@/components/VariantEditor';
 
 interface Cred { marketplace: MarketplaceName; mode: 'live' | 'demo' | 'off'; extraConfig: Record<string, unknown> }
 interface MpState {
@@ -23,8 +24,9 @@ interface Form {
   title: string; brand: string; category: string; barcode: string; sku: string; description: string; vatRate: string; desi: string;
   images: string[];
   costPrice: string; costVatRate: string; packagingCost: string; price: string; listPrice: string; stock: string; lowStockThreshold: string;
+  variants: VariantState;
 }
-const EMPTY: Form = { title: '', brand: '', category: '', barcode: '', sku: '', description: '', vatRate: '20', desi: '1', images: [], costPrice: '', costVatRate: '20', packagingCost: '0', price: '', listPrice: '', stock: '', lowStockThreshold: '5' };
+const EMPTY: Form = { title: '', brand: '', category: '', barcode: '', sku: '', description: '', vatRate: '20', desi: '1', images: [], costPrice: '', costVatRate: '20', packagingCost: '0', price: '', listPrice: '', stock: '', lowStockThreshold: '5', variants: EMPTY_VARIANTS };
 const STEPS = [
   { key: 'info', label: 'Ürün bilgileri', icon: Package },
   { key: 'photos', label: 'Fotoğraflar', icon: ImageIcon },
@@ -47,6 +49,23 @@ function makeSku(title: string) {
   return `${base || 'NA'}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 }
 
+const lc = (x: string) => x.trim().toLocaleLowerCase('tr-TR');
+/** Trendyol varyant özelliği (ör. "Renk") seçenek adlarından biriyle karşılanıyor mu? */
+function variantDefCovered(d: AttrDef, v: VariantState) {
+  return d.varianter && v.options.some((o) => o.name.trim() && lc(o.name) === lc(d.name));
+}
+/** Bir seçenek için Trendyol özellikleri: ortak özellikler + seçenek değerleri (ör. Renk = Kırmızı) */
+function trendyolVariantAttrs(defs: AttrDef[], common: Record<number, AttrValue>, attrs: Record<string, string>) {
+  const own: Record<number, AttrValue> = {};
+  for (const [name, value] of Object.entries(attrs)) {
+    const d = defs.find((x) => lc(x.name) === lc(name));
+    if (!d) continue;
+    const match = d.values.find((x) => lc(x.name) === lc(value));
+    own[d.id] = match ? { valueId: match.id } : { custom: value };
+  }
+  return attributesPayload({ ...common, ...own });
+}
+
 export default function NewProductPage() {
   const router = useRouter();
   const toast = useToast();
@@ -56,7 +75,9 @@ export default function NewProductPage() {
   const [mps, setMps] = useState<Record<string, MpState>>({});
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<{ id: string; results: Record<string, { ok: boolean; message: string }> } | null>(null);
-  const set = (k: keyof Form, v: string | string[]) => setF((x) => ({ ...x, [k]: v }));
+  const set = (k: Exclude<keyof Form, 'variants'>, v: string | string[]) => setF((x) => ({ ...x, [k]: v }));
+  const hasVariants = f.variants.enabled;
+  const setVariants = (v: VariantState) => setF((x) => ({ ...x, variants: v }));
 
   // Taslak: sayfa yenilense de girilenler kaybolmasın
   useEffect(() => {
@@ -89,6 +110,7 @@ export default function NewProductPage() {
     }).catch((e: Error) => toast(e.message, 'err'));
   }, [toast]);
 
+  const [manualIds, setManualIds] = useState<Record<string, boolean>>({});
   const setMp = (mp: string, patch: Partial<MpState>) => setMps((x) => ({ ...x, [mp]: { ...x[mp], ...patch } }));
   const selected = Object.entries(mps).filter(([, s]) => s.publish).map(([k]) => k as MarketplaceName);
   const basePrice = n(f.price);
@@ -114,14 +136,16 @@ export default function NewProductPage() {
     if (f.title.trim().length < 5) p[0].push('Ürün adı en az 5 karakter olmalı.');
     if (!f.brand.trim()) p[0].push('Marka girin.');
     if (!f.category.trim()) p[0].push('Kategori girin.');
-    if (!/^[0-9A-Za-z-]{4,64}$/.test(f.barcode.trim())) p[0].push('Barkod girin (en az 4 karakter, boşluksuz).');
+    if (!hasVariants && !/^[0-9A-Za-z-]{4,64}$/.test(f.barcode.trim())) p[0].push('Barkod girin (en az 4 karakter, boşluksuz).');
+    if (hasVariants && f.variants.rows.length < 2) p[0].push('Seçenekler: seçenek adını ve en az iki değer yazın (ör. Renk: Kırmızı, Mavi).');
     if (!f.sku.trim()) p[0].push('Stok kodu (SKU) girin.');
     if (f.description.trim().length < 30) p[0].push('Açıklama en az 30 karakter olmalı — pazaryerleri kısa açıklamalı ürünleri reddedebilir.');
     if (!(n(f.desi) > 0)) p[0].push('Desi değeri girin.');
     if (!f.images.length) p[1].push('En az bir fotoğraf ekleyin.');
     if (!(n(f.price) > 0)) p[2].push('Satış fiyatı girin.');
     if (!(n(f.costPrice) >= 0)) p[2].push('Ürün maliyetini girin (kâr hesabı için).');
-    if (!(n(f.stock) >= 0) || !Number.isInteger(n(f.stock))) p[2].push('Başlangıç stoğunu tam sayı olarak girin.');
+    if (!hasVariants && (!(n(f.stock) >= 0) || !Number.isInteger(n(f.stock)))) p[2].push('Başlangıç stoğunu tam sayı olarak girin.');
+    p[2].push(...variantProblems(f.variants));
     if (f.listPrice && n(f.listPrice) < n(f.price)) p[2].push('Liste (üstü çizili) fiyat satış fiyatından düşük olamaz.');
     for (const mp of selected) {
       const s = mps[mp];
@@ -129,11 +153,12 @@ export default function NewProductPage() {
       if (mp === 'trendyol') {
         if (!s.category) p[3].push(`${label}: kategori seçin.`);
         if (!s.brand) p[3].push(`${label}: marka seçin (Trendyol'da kayıtlı marka).`);
-        const missing = s.attrDefs.filter((d) => d.required && !s.attrs[d.id]?.valueId && !s.attrs[d.id]?.custom?.trim());
+        const missing = s.attrDefs.filter((d) => d.required && !s.attrs[d.id]?.valueId && !s.attrs[d.id]?.custom?.trim() && !(hasVariants && variantDefCovered(d, f.variants)));
         if (missing.length) p[3].push(`${label}: zorunlu özellikler eksik — ${missing.map((d) => d.name).join(', ')}.`);
       } else if (['hepsiburada', 'n11', 'ciceksepeti', 'pazarama', 'idefix'].includes(mp) && !s.categoryId.trim()) {
-        p[3].push(`${label}: kategori ID girin.`);
+        p[3].push(`${label}: kategori seçin.`);
       }
+      if ((mp === 'pazarama' || mp === 'idefix') && !s.brandId.trim()) p[3].push(`${label}: marka seçin.`);
       if (s.price && !(n(s.price) > 0)) p[3].push(`${label}: özel fiyat geçersiz.`);
     }
     return p;
@@ -150,17 +175,28 @@ export default function NewProductPage() {
         listingSettings[mp] = { carrier: s.carrier, handlingDays: s.handlingDays, sameDayTag: s.sameDayTag, fastTag: s.fastTag, commissionRate: s.commissionRate, priceOverride: s.price || null };
         if (mp === 'trendyol') {
           marketplaceAttributes[mp] = { categoryId: s.category?.id, categoryName: s.category?.name, brandId: s.brand?.id, brandName: s.brand?.name, attributes: attributesPayload(s.attrs), dimensionalWeight: n(f.desi) || 1 };
+        } else if (mp === 'etsy') {
+          marketplaceAttributes[mp] = s.categoryId ? { taxonomyId: Number(s.categoryId), categoryName: s.category?.name } : {};
         } else {
-          marketplaceAttributes[mp] = { ...(s.categoryId ? { categoryId: s.categoryId } : {}), ...(s.brandId ? { brandId: s.brandId } : {}) };
+          marketplaceAttributes[mp] = {
+            ...(s.categoryId ? { categoryId: s.categoryId, categoryName: s.category?.name } : {}),
+            ...(s.brandId ? { brandId: s.brandId, brandName: s.brand?.name } : {}),
+          };
         }
       }
+      // Seçenekli ürün: her seçenek kendi SKU, barkod, stok, fiyat ve (Trendyol için) varyant özelliğiyle gönderilir
+      const variants = hasVariants ? f.variants.rows.map((r) => ({
+        sku: r.sku, barcode: r.barcode, stock: Number(r.stock), price: r.price ? n(r.price) : undefined, attrs: r.attrs,
+        marketplaceAttributes: Object.fromEntries(Object.entries(marketplaceAttributes).map(([mp, ma]) => [mp,
+          mp === 'trendyol' && mps.trendyol ? { ...ma, attributes: trendyolVariantAttrs(mps.trendyol.attrDefs, mps.trendyol.attrs, r.attrs) } : ma])),
+      })) : undefined;
       const r = await api<{ product: { id: string }; results: Record<string, { ok: boolean; message: string }> }>('/api/products', {
         method: 'POST',
         body: {
-          title: f.title.trim(), brand: f.brand.trim(), category: f.category.trim(), barcode: f.barcode.trim(), sku: f.sku.trim(),
+          title: f.title.trim(), brand: f.brand.trim(), category: f.category.trim(), barcode: hasVariants ? f.variants.rows[0]?.barcode : f.barcode.trim(), sku: f.sku.trim(), variants,
           description: f.description, vatRate: n(f.vatRate), desi: n(f.desi), images: f.images,
           costPrice: n(f.costPrice), costVatRate: n(f.costVatRate), packagingCost: n(f.packagingCost) || 0,
-          price: n(f.price), listPrice: f.listPrice ? n(f.listPrice) : undefined, stock: n(f.stock), lowStockThreshold: n(f.lowStockThreshold) || 0,
+          price: n(f.price), listPrice: f.listPrice ? n(f.listPrice) : undefined, stock: hasVariants ? 0 : n(f.stock), lowStockThreshold: n(f.lowStockThreshold) || 0,
           marketplaces: selected, listingSettings, marketplaceAttributes,
         },
       });
@@ -210,7 +246,7 @@ export default function NewProductPage() {
           return (
             <li key={s.key}>
               <button type="button" onClick={() => canGo(i) && setStep(i)} disabled={!canGo(i)}
-                className={cx('w-full flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition',
+                className={cx('w-full flex items-center justify-center md:justify-start gap-2 rounded-xl border px-2 md:px-3 py-2 text-left text-sm transition',
                   i === step ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : ok ? 'border-emerald-200 bg-white text-slate-700' : 'border-slate-200 bg-white text-slate-500',
                   !canGo(i) && 'opacity-50 cursor-not-allowed')}>
                 <span className={cx('w-6 h-6 rounded-full grid place-items-center text-xs shrink-0', i === step ? 'bg-indigo-600 text-white' : ok ? 'bg-emerald-500 text-white' : 'bg-slate-100')}>
@@ -222,23 +258,27 @@ export default function NewProductPage() {
           );
         })}
       </ol>
+      <div className="md:hidden text-sm font-medium text-slate-700 -mt-1">Adım {step + 1} / {STEPS.length} — {STEPS[step].label}</div>
 
-      <Card className="p-5">
+      <Card className="p-4 sm:p-5">
         {step === 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2"><Field label="Ürün adı *" hint={`${f.title.length}/100 — Trendyol başlığı 100 karakterle sınırlar. Marka + ürün + öne çıkan özellik yazın.`}>
               <input className={inputClass} maxLength={150} value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="Örn. El Yapımı Saten Kurdele Toka 3'lü Set - Pudra" />
             </Field></div>
-            <Field label="Marka *"><input className={inputClass} value={f.brand} onChange={(e) => set('brand', e.target.value)} placeholder="Nuance Art" /></Field>
+            <Field label="Marka *"><input className={inputClass} value={f.brand} onChange={(e) => set('brand', e.target.value)} placeholder="Markanızın adı" /></Field>
             <Field label="Kategori (iç kullanım) *" hint="Panelde gruplama için. Pazaryeri kategorisini 4. adımda seçeceksiniz."><input className={inputClass} value={f.category} onChange={(e) => set('category', e.target.value)} placeholder="Saç Aksesuarı" /></Field>
-            <Field label="Barkod *" hint="Ürünün üzerindeki barkod. Yoksa 'Oluştur' ile iç barkod üretebilirsiniz.">
-              <div className="flex gap-2"><input className={inputClass} value={f.barcode} onChange={(e) => set('barcode', e.target.value.replace(/\s/g, ''))} />
-                <Button variant="secondary" onClick={() => set('barcode', makeBarcode())}><Wand2 className="w-4 h-4" />Oluştur</Button></div>
-            </Field>
-            <Field label="Stok kodu (SKU) *" hint="Tüm pazaryerlerinde ortak stok kodu.">
+            {!hasVariants && (
+              <Field label="Barkod *" hint="Ürünün üzerindeki barkod. Yoksa 'Oluştur' ile iç barkod üretebilirsiniz.">
+                <div className="flex gap-2"><input className={inputClass} value={f.barcode} onChange={(e) => set('barcode', e.target.value.replace(/\s/g, ''))} />
+                  <Button variant="secondary" onClick={() => set('barcode', makeBarcode())}><Wand2 className="w-4 h-4" />Oluştur</Button></div>
+              </Field>
+            )}
+            <Field label={hasVariants ? 'Ana ürün kodu *' : 'Stok kodu (SKU) *'} hint={hasVariants ? 'Seçenekleri pazaryerinde tek ilan altında toplayan kod. Seçeneklerin SKU\'ları bundan türetilir.' : 'Tüm pazaryerlerinde ortak stok kodu.'}>
               <div className="flex gap-2"><input className={inputClass} value={f.sku} onChange={(e) => set('sku', e.target.value.trim())} />
                 <Button variant="secondary" onClick={() => set('sku', makeSku(f.title))}><Wand2 className="w-4 h-4" />Oluştur</Button></div>
             </Field>
+            <div className="md:col-span-2"><VariantOptionsEditor value={f.variants} onChange={setVariants} baseSku={f.sku} /></div>
             <div className="md:col-span-2"><Field label="Ürün açıklaması *" hint={`${f.description.length} karakter. Malzeme, ölçü, kullanım ve bakım bilgilerini yazın. Satır sonları korunur. Tüm pazaryerlerine aynı açıklama gider.`}>
               <textarea className={`${inputClass} min-h-[180px]`} value={f.description} onChange={(e) => set('description', e.target.value)} placeholder={'• Malzeme: %100 saten\n• Ölçü: 8 cm\n• Paket içeriği: 3 adet\n• Bakım: Elde yıkayınız'} />
             </Field></div>
@@ -261,8 +301,9 @@ export default function NewProductPage() {
             <Field label="Satış fiyatı (KDV dahil) *" hint="Tüm pazaryerlerinde varsayılan fiyat; 4. adımda pazaryerine özel değiştirebilirsiniz."><input className={inputClass} inputMode="decimal" value={f.price} onChange={(e) => set('price', e.target.value)} /></Field>
             <Field label="Liste fiyatı (üstü çizili)" hint="Boş bırakılırsa satış fiyatı."><input className={inputClass} inputMode="decimal" value={f.listPrice} onChange={(e) => set('listPrice', e.target.value)} /></Field>
             <div />
-            <Field label="Başlangıç stoğu *" hint="Ortak stok havuzu: tüm pazaryerlerine aynı stok gönderilir, satış olunca hepsinde düşer."><input className={inputClass} inputMode="numeric" value={f.stock} onChange={(e) => set('stock', e.target.value)} /></Field>
+            {!hasVariants && <Field label="Başlangıç stoğu *" hint="Ortak stok havuzu: tüm pazaryerlerine aynı stok gönderilir, satış olunca hepsinde düşer."><input className={inputClass} inputMode="numeric" value={f.stock} onChange={(e) => set('stock', e.target.value)} /></Field>}
             <Field label="Kritik stok eşiği" hint="Bu seviyenin altında uyarı verilir."><input className={inputClass} inputMode="numeric" value={f.lowStockThreshold} onChange={(e) => set('lowStockThreshold', e.target.value)} /></Field>
+            {hasVariants && <div className="md:col-span-3"><VariantRowsEditor value={f.variants} onChange={setVariants} basePrice={f.price} /></div>}
             {quotes.data && quotes.data.length > 0 && (
               <div className="md:col-span-3">
                 <div className="text-sm font-medium mb-1">Bu fiyatta pazaryeri bazında kârınız</div>
@@ -324,20 +365,41 @@ export default function NewProductPage() {
                           <div className="md:col-span-2"><SearchPicker marketplace={mp} kind="brands" label="Trendyol markası *" value={s.brand} onChange={(v) => setMp(mp, { brand: v })} placeholder={f.brand || 'Marka adı'} /></div>
                           <div className="md:col-span-4"><AttributesForm marketplace={mp} categoryId={s.category?.id ?? null} value={s.attrs} onChange={(v) => setMp(mp, { attrs: v })} onLoaded={(d) => setMp(mp, { attrDefs: d })} /></div>
                         </>
-                      ) : mp === 'etsy' ? (
-                        <p className="md:col-span-4 text-xs text-slate-500">Etsy: kategori (taxonomy) ve kargo profili API Bağlantıları&apos;ndaki varsayılanlardan alınır. Fiyat, mağaza para birimine güncel TCMB kuruyla çevrilir.</p>
                       ) : mp === 'koctas' ? (
                         <p className="md:col-span-4 text-xs text-slate-500">Koçtaş: ürün, Mirakl kataloğunda barkod ile eşleştirilir. Eşleşmezse Koçtaş paneli üzerinden ürün kartı açılması gerekir.</p>
                       ) : (
                         <>
-                          <Field label={`${MARKETPLACE_META[mp].label} kategori ID *`} hint="Pazaryeri panelindeki kategori numarası.">
-                            <input className={inputClass} value={s.categoryId} onChange={(e) => setMp(mp, { categoryId: e.target.value.trim() })} />
-                          </Field>
+                          <div className="md:col-span-2">
+                            {manualIds[mp] ? (
+                              <Field label={`${MARKETPLACE_META[mp].label} kategori numarası${mp === 'etsy' ? '' : ' *'}`} hint="Pazaryeri panelindeki kategori numarası.">
+                                <input className={inputClass} value={s.categoryId} onChange={(e) => setMp(mp, { categoryId: e.target.value.trim(), category: null })} />
+                              </Field>
+                            ) : (
+                              <SearchPicker marketplace={mp} kind="categories" label={`${MARKETPLACE_META[mp].label} kategorisi${mp === 'etsy' ? '' : ' *'}`}
+                                value={s.category ?? (s.categoryId ? { id: s.categoryId, name: `Kategori #${s.categoryId}` } : null)}
+                                onChange={(v) => setMp(mp, { category: v, categoryId: v ? String(v.id) : '' })} placeholder="Örn. toka, kurdele, mum…" />
+                            )}
+                            <button type="button" className="text-[11px] text-indigo-600 mt-1" onClick={() => setManualIds((x) => ({ ...x, [mp]: !x[mp] }))}>
+                              {manualIds[mp] ? 'Listeden arayarak seç' : 'Kategori numarasını elle yaz'}
+                            </button>
+                          </div>
                           {(mp === 'pazarama' || mp === 'idefix') && (
-                            <Field label="Marka ID">
-                              <input className={inputClass} value={s.brandId} onChange={(e) => setMp(mp, { brandId: e.target.value.trim() })} />
-                            </Field>
+                            <div className="md:col-span-2">
+                              {manualIds[`${mp}:brand`] ? (
+                                <Field label={`${MARKETPLACE_META[mp].label} marka numarası *`}>
+                                  <input className={inputClass} value={s.brandId} onChange={(e) => setMp(mp, { brandId: e.target.value.trim(), brand: null })} />
+                                </Field>
+                              ) : (
+                                <SearchPicker marketplace={mp} kind="brands" label={`${MARKETPLACE_META[mp].label} markası *`}
+                                  value={s.brand ?? (s.brandId ? { id: s.brandId, name: `Marka #${s.brandId}` } : null)}
+                                  onChange={(v) => setMp(mp, { brand: v, brandId: v ? String(v.id) : '' })} placeholder={f.brand || 'Marka adı'} />
+                              )}
+                              <button type="button" className="text-[11px] text-indigo-600 mt-1" onClick={() => setManualIds((x) => ({ ...x, [`${mp}:brand`]: !x[`${mp}:brand`] }))}>
+                                {manualIds[`${mp}:brand`] ? 'Listeden arayarak seç' : 'Marka numarasını elle yaz'}
+                              </button>
+                            </div>
                           )}
+                          {mp === 'etsy' && <p className="md:col-span-4 text-xs text-slate-500">Etsy: kategori seçmezseniz API Bağlantıları&apos;ndaki varsayılan kullanılır. Fiyat, mağaza para birimine güncel TCMB kuruyla çevrilir.</p>}
                         </>
                       )}
                     </div>
@@ -367,7 +429,12 @@ export default function NewProductPage() {
             </div>
             <div className="space-y-3 text-sm min-w-0">
               <h3 className="text-lg font-semibold">{f.title}</h3>
-              <div className="text-slate-500 break-words">{f.brand} · {f.category} · SKU {f.sku} · Barkod {f.barcode} · KDV %{f.vatRate} · {f.desi} desi</div>
+              <div className="text-slate-500 break-words">{f.brand} · {f.category} · {hasVariants ? `Ana kod ${f.sku}` : `SKU ${f.sku} · Barkod ${f.barcode}`} · KDV %{f.vatRate} · {f.desi} desi</div>
+              {hasVariants && (
+                <div className="text-xs text-slate-600 mt-1">
+                  <b>{f.variants.rows.length} seçenek:</b> {f.variants.rows.map((r) => `${variantLabel(r.attrs)} (${r.stock || 0} adet)`).join(', ')}
+                </div>
+              )}
               <div className="flex flex-wrap gap-4">
                 <div><div className="text-xs text-slate-500">Satış fiyatı</div><div className="font-semibold">{tl2(n(f.price))}</div></div>
                 <div><div className="text-xs text-slate-500">Maliyet</div><div className="font-semibold">{tl2(n(f.costPrice))}</div></div>

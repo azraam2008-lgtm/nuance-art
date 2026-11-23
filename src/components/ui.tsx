@@ -58,13 +58,13 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={cx('bg-white rounded-2xl shadow-xl w-full max-h-[92vh] overflow-y-auto fade-in', wide ? 'max-w-3xl' : 'max-w-xl')}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
-          <h2 className="text-lg font-semibold">{title}</h2>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={cx('bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-h-[92vh] overflow-y-auto fade-in', wide ? 'sm:max-w-3xl' : 'sm:max-w-xl')}>
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
+          <h2 className="text-base sm:text-lg font-semibold min-w-0">{title}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label="Kapat"><X className="w-5 h-5" /></button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6">{children}</div>
       </div>
     </div>
   );

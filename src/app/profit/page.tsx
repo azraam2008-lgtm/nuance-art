@@ -16,6 +16,7 @@ interface Report {
   losses: Array<{ id: string; external_order_id: string; marketplace: string; date: string; net_profit: number; revenue_gross: number; reason: string }>;
   missed: { sameDay: number; fast: number; extraCost: number; orders: Array<{ id: string; external_order_id: string; marketplace: string; date: string; kind: string }> };
   uncomputed: number;
+  ads?: { totalNet: number; byMarketplace: Record<string, number>; profitAfterAds: number };
 }
 
 const iso = (d: Date) => new Date(d.getTime() + 3 * 3600_000).toISOString().slice(0, 10);
@@ -61,6 +62,13 @@ export default function ProfitPage() {
 
       {loading ? <PageLoader /> : error || !data ? <ErrorBox error={error ?? ''} onRetry={reload} /> : (
         <>
+          {!!data.ads?.totalNet && (
+            <Card className="p-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+              <span>Reklam harcaması (KDV hariç): <b className="tabular-nums">{tl(data.ads.totalNet)}</b></span>
+              <span>Reklam sonrası net kâr: <b className={cx('tabular-nums', data.ads.profitAfterAds < 0 ? 'text-rose-600' : 'text-emerald-700')}>{tl(data.ads.profitAfterAds)}</b></span>
+              <a href="/ads" className="text-indigo-600 text-xs hover:underline">Reklam harcamaları →</a>
+            </Card>
+          )}
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
             <Kpi label="Ciro (KDV dahil)" value={tl(data.total.revenue_gross)} sub={`${data.total.orders} sipariş · ${data.total.cancelled} iptal`} />
             <Kpi label="Net kâr" value={tl(data.total.net_profit)} accent={data.total.net_profit < 0 ? 'text-rose-600' : 'text-emerald-700'}
@@ -128,14 +136,14 @@ export default function ProfitPage() {
             <Card className="overflow-x-auto">
               <div className="px-5 py-3 border-b border-slate-100 font-semibold">Ürün kârlılığı</div>
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th className="text-left px-4 py-2">Ürün</th><th className="text-right px-4 py-2">Adet</th><th className="text-right px-4 py-2">Net kâr</th><th className="text-right px-4 py-2">Adet başı</th></tr></thead>
+                <thead className="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th className="text-left px-4 py-2">Ürün</th><th className="text-right px-4 py-2">Adet</th><th className="text-right px-4 py-2">Net kâr</th><th className="text-right px-4 py-2 hidden sm:table-cell">Adet başı</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.products.map((x) => (
                     <tr key={x.sku}>
-                      <td className="px-4 py-2"><div className="font-medium truncate max-w-[260px]">{x.title}</div><div className="text-[11px] text-slate-500 font-mono">{x.sku}</div></td>
+                      <td className="px-4 py-2"><div className="font-medium truncate max-w-[140px] sm:max-w-[260px]">{x.title}</div><div className="text-[11px] text-slate-500 font-mono">{x.sku}</div></td>
                       <td className="px-4 py-2 text-right">{x.units}</td>
                       <td className={cx('px-4 py-2 text-right tabular-nums font-semibold', x.net_profit < 0 ? 'text-rose-600' : 'text-emerald-700')}>{tl2(x.net_profit)}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{tl2(x.units ? x.net_profit / x.units : 0)}</td>
+                      <td className="px-4 py-2 text-right tabular-nums hidden sm:table-cell">{tl2(x.units ? x.net_profit / x.units : 0)}</td>
                     </tr>
                   ))}
                 </tbody>

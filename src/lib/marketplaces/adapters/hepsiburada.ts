@@ -1,9 +1,8 @@
 import type { OrderStatus } from '../meta';
 import type {
-  AdapterResult, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder,
-  ProductPayload, RemoteProduct, StockUpdate,
+  AdapterResult, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { basicAuth, chunk, errorMessage, num, request, str } from '../http';
+import { basicAuth, cachedCategories, chunk, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
 
 /**
  * Hepsiburada Marketplace API adaptörü.
@@ -48,7 +47,7 @@ export class HepsiburadaAdapter implements MarketplaceAdapter {
     if (!categoryId) return { ok: false, status: 'error', message: 'Hepsiburada kategori ID gerekli.' };
     const attributes: Record<string, unknown> = {
       merchantSku: p.sku,
-      VaryantGroupID: p.sku,
+      VaryantGroupID: p.groupCode,
       Barcode: p.barcode,
       UrunAdi: p.title,
       UrunAciklamasi: p.description || p.title,
@@ -160,6 +159,63 @@ export class HepsiburadaAdapter implements MarketplaceAdapter {
       description: '', category: '', brand: '', vatRate: 20, price: num(l.price), listPrice: num(l.price), costPrice: 0,
       stock: num(l.availableStock), images: [], attributes: {},
     }));
+  }
+
+  /**
+   * Sipariş durumu → Hepsiburada.
+   *  Hazırlanıyor → kalemler paketlenir (paket oluşturma). İptal → satıcı iptali (kalem bazında).
+   *  Kargoda / Teslim edildi: HepsiJET ve anlaşmalı kargolar bu bilgiyi Hepsiburada'ya kendisi iletir.
+   */
+  async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
+    const lines = recs(u.raw).map((l) => ({ id: str(l.id ?? l.lineItemId), quantity: num(l.quantity, 1) })).filter((l) => l.id);
+    if (!lines.length && (u.status === 'preparing' || u.status === 'cancelled')) return { ok: false, message: 'Hepsiburada sipariş kalemleri bulunamadı (sipariş yeniden senkronlanmalı).' };
+    try {
+      switch (u.status) {
+        case 'preparing': {
+          const res = await request<{ packageNumber?: string }>(`${this.omsBase}/packages/merchantid/${this.mid}`, {
+            method: 'POST', headers: this.headers, json: { lineItemRequests: lines.map((l) => ({ id: l.id, quantity: l.quantity })) },
+          });
+          return { ok: true, message: `Hepsiburada'da paket oluşturuldu${res?.packageNumber ? ` (#${res.packageNumber})` : ''}.` };
+        }
+        case 'cancelled':
+          for (const l of lines) {
+            await request(`${this.omsBase}/lineitems/merchantid/${this.mid}/id/${encodeURIComponent(l.id)}/cancelbymerchant`, {
+              method: 'POST', headers: this.headers, json: { reasonId: num(this.c.extra.cancelReasonId, 3) },
+            });
+          }
+          return { ok: true, message: 'Hepsiburada\'da sipariş iptal edildi.' };
+        case 'shipped': case 'delivered':
+          return notSupported('Hepsiburada\'da "Kargoda" ve "Teslim edildi" bilgisi kargo firmasından otomatik gelir.');
+        default:
+          return notSupported('Hepsiburada\'da sipariş "Yeni" durumuna geri alınamaz.');
+      }
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
+  }
+
+  /** Hepsiburada kategori araması (yalnızca ürün açılabilen yaprak kategoriler) */
+  async searchCategories(q: string): Promise<CategoryOption[]> {
+    const all = await cachedCategories('hepsiburada', async () => {
+      const out: CategoryOption[] = [];
+      for (let page = 0; page < 30; page++) {
+        const res = await request<{ data?: Array<Record<string, unknown>>; totalPages?: number; last?: boolean }>(
+          `${this.productBase}/product/api/categories/get-all-categories?leaf=true&status=ACTIVE&available=true&page=${page}&size=2000&version=1`, { headers: this.headers });
+        for (const c of res?.data ?? []) {
+          const paths = Array.isArray(c.paths) ? (c.paths as unknown[]).map((x) => str(x)) : [];
+          out.push({ id: num(c.categoryId ?? c.id), name: str(c.name), path: paths.length ? [...paths, str(c.name)].join(' › ') : str(c.name) });
+        }
+        if (res?.last || !res?.totalPages || page + 1 >= res.totalPages) break;
+      }
+      return out;
+    });
+    return searchIn(all, q);
+  }
+
+  /** İçerik güncellemesi: Hepsiburada'da ürün bilgileri aynı içe aktarma servisiyle güncellenir (onaya gider) */
+  async updateProduct(p: ProductPayload): Promise<AdapterResult> {
+    const r = await this.createProduct(p);
+    return r.ok ? { ...r, message: `İçerik güncellemesi Hepsiburada onayına gönderildi (trackingId: ${r.ref ?? '-'}).` } : r;
   }
 }
 

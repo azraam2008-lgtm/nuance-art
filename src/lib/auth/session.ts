@@ -5,6 +5,10 @@ export const SESSION_DAYS = 14;
 
 export interface SessionPayload {
   uid: string;
+  /** mağaza (store) kimliği */
+  sid: string;
+  /** oturum sürümü: şifre değişince artar, eski oturumlar geçersiz olur */
+  sv: number;
   email: string;
   name: string;
   exp: number; // ms
@@ -49,7 +53,8 @@ export async function verifySession(token: string | undefined | null, secret = s
   if (diff !== 0) return null;
   try {
     const p = JSON.parse(new TextDecoder().decode(fromB64url(body))) as SessionPayload;
-    return p.exp > Date.now() ? p : null;
+    // Çok mağazalı yapıdan önceki çerezlerde mağaza bilgisi yok: yeniden giriş istenir
+    return p.exp > Date.now() && p.sid ? p : null;
   } catch {
     return null;
   }
