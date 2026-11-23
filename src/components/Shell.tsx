@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Activity, Boxes, ListChecks, Receipt, Calculator, LayoutDashboard, LogOut, Megaphone, Menu, Package, Plus, PlusCircle, Scale, Settings, ShoppingCart, TrendingUp, UserCog, X, Zap, Radio } from 'lucide-react';
+import { Activity, Boxes, Lightbulb, ListChecks, Receipt, Calculator, LayoutDashboard, LogOut, Megaphone, Menu, Package, Plus, PlusCircle, Scale, Settings, ShoppingCart, TrendingUp, UserCog, X, Zap, Radio } from 'lucide-react';
 import { BrandMark } from './Brand';
 import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { LiveProvider, ToastProvider, api, useLive, useLiveData, useToast } from './live';
@@ -10,6 +10,7 @@ import { Button, MarketplaceBadge, cx } from './ui';
 
 const NAV = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/insights', label: 'Öneriler', icon: Lightbulb },
   { href: '/products/new', label: 'Yeni Ürün Ekle', icon: PlusCircle, exact: true },
   { href: '/products', label: 'Ürünler', icon: Package },
   { href: '/stock', label: 'Stok', icon: Boxes },
