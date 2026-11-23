@@ -10,7 +10,7 @@ import { useLiveData } from '@/components/live';
 import { Card, ErrorBox, MarketplaceBadge, PageLoader, StatusBadge, cx, fmtDate, tl, tl2 } from '@/components/ui';
 
 interface Dashboard {
-  health: { products: number; outOfStock: number; pending: number; errors: number; unsynced: number; jobsFailed?: number; jobsPending?: number };
+  health: { products: number; outOfStock: number; pending: number; errors: number; unsynced: number; jobsFailed?: number; jobsPending?: number; lateOrders?: number };
   kpis: { monthRevenue: number; monthOrders: number; topMarketplace: MarketplaceName | null; topMarketplaceRevenue: number; criticalCount: number; monthNetProfit: number; monthEstimates: number };
   distribution: Array<{ marketplace: MarketplaceName; revenue: number; share: number }>;
   monthly: Array<Record<string, number | string>>;
@@ -34,6 +34,7 @@ export default function DashboardPage() {
   const active = MARKETPLACES.filter((m) => [...data.monthly, ...data.daily].some((r) => Number(r[m] ?? 0) > 0));
   const dist = data.distribution.filter((d) => d.revenue > 0);
   const alerts = [
+    (h.lateOrders ?? 0) > 0 && { href: '/orders', cls: 'bg-rose-50 text-rose-800 border-rose-200', text: `${h.lateOrders} siparişin kargoya teslim süresi geçti — Siparişler'de "Geciken" filtresiyle görün.` },
     (h.jobsFailed ?? 0) > 0 && { href: '/operations', cls: 'bg-rose-50 text-rose-800 border-rose-200', text: `${h.jobsFailed} işlem pazaryerine gönderilemedi — İşlem Merkezi'nde nedenini görün ve tekrar deneyin.` },
     (h.jobsPending ?? 0) > 0 && { href: '/operations', cls: 'bg-amber-50 text-amber-800 border-amber-200', text: `${h.jobsPending} işlem otomatik olarak tekrar denenecek.` },
     h.outOfStock > 0 && { href: '/stock', cls: 'bg-rose-50 text-rose-800 border-rose-200', text: `${h.outOfStock} ürün tükendi — tüm pazaryerlerinde stok 0.` },

@@ -2,11 +2,12 @@ import 'server-only';
 import { db, must } from '@/lib/supabase/server';
 import { decryptSecret } from '@/lib/crypto';
 import { createAdapter } from '@/lib/marketplaces/registry';
-import { MARKETPLACES, MARKETPLACE_META, ORDER_PREFIX, ORDER_STATUS_META, isMarketplace, type MarketplaceName, type OrderStatus } from '@/lib/marketplaces/meta';
+import { MARKETPLACES, MARKETPLACE_META, OPEN_STATUSES, ORDER_PREFIX, ORDER_STATUS_META, isClosedStatus, isMarketplace, type MarketplaceName, type OrderStatus } from '@/lib/marketplaces/meta';
 import type { AdapterResult, MarketplaceAdapter, NormalizedOrder, ProductPayload, StockUpdate } from '@/lib/marketplaces/types';
 import { errorMessage } from '@/lib/marketplaces/http';
 import { computeOrderCosts, loadSettings } from '@/lib/fees/service';
 import { jobKey, noteResults } from './job-log';
+import { isDemoStore } from '@/lib/demo';
 
 /* =====================================================================
  * Senkronizasyon Motoru
@@ -20,8 +21,11 @@ export interface ProductRow {
   id: string; sku: string; barcode: string; title: string; description: string; category: string; brand: string;
   vat_rate: number; price: number; list_price: number | null; cost_price: number; total_stock: number;
   low_stock_threshold: number; image_url: string | null; images: string[]; marketplace_attributes: Record<string, Record<string, unknown>>;
-  group_code?: string | null; variant_attrs?: Record<string, string> | null;
+  group_code?: string | null; variant_attrs?: Record<string, string> | null; safety_stock?: number | null;
 }
+
+/** Pazaryerlerine gösterilecek stok: ortak havuz − güvenlik stoğu (en az 0) */
+export const sellableStock = (p: { total_stock: number; safety_stock?: number | null }) => Math.max(0, Number(p.total_stock) - Math.max(0, Number(p.safety_stock ?? 0)));
 
 /** Seçenek değerlerini başlığa ekler: "Soya Mum" + {Koku: Vanilya} → "Soya Mum - Vanilya" (başlıkta zaten varsa eklemez) */
 export function variantTitle(title: string, attrs: Record<string, string> | null | undefined): string {
@@ -49,6 +53,7 @@ export async function log(level: LogLevel, kind: LogKind, marketplace: Marketpla
 export async function loadAdapters(): Promise<Map<MarketplaceName, { adapter: MarketplaceAdapter | null; row: CredentialRow }>> {
   const rows = must(await db().from('marketplace_credentials').select('*')) as CredentialRow[];
   const settings = await loadSettings().catch(() => null);
+  const demo = await isDemoStore();
   const map = new Map<MarketplaceName, { adapter: MarketplaceAdapter | null; row: CredentialRow }>();
   for (const name of MARKETPLACES) {
     const row = rows.find((r) => r.marketplace_name === name) ?? {
@@ -59,6 +64,7 @@ export async function loadAdapters(): Promise<Map<MarketplaceName, { adapter: Ma
     const extra = { ...(row.extra_config ?? {}), __fx: settings?.fx ?? {} };
     const adapter = createAdapter(name, { apiKey: row.api_key, apiSecret: secret, sellerId: row.seller_id, extra }, row.is_active, {
       saveExtra: async (next) => { await db().from('marketplace_credentials').update({ extra_config: next }).eq('marketplace_name', name); },
+      demo,
     });
     map.set(name, { adapter, row });
   }
@@ -86,7 +92,7 @@ export function toPayload(p: ProductRow, mp: MarketplaceName, l?: ListingOverrid
     sku: p.sku, barcode: p.barcode, groupCode: p.group_code || p.sku, variantAttributes: p.variant_attrs ?? {},
     title: variantTitle(p.title, p.variant_attrs), description: p.description, category: p.category, brand: p.brand,
     vatRate: Number(p.vat_rate), price, listPrice: Math.max(price, Number(p.list_price ?? p.price)), costPrice: Number(p.cost_price),
-    stock: p.total_stock, images,
+    stock: sellableStock(p), images,
     attributes: {
       ...(l?.handling_days != null ? { handlingDays: l.handling_days } : {}),
       ...(l?.same_day_tag ? { sameDay: true } : {}),
@@ -127,7 +133,7 @@ export async function publishProduct(productId: string, marketplaces: Marketplac
       sync_ref: res.ref ?? null,
       sync_error_message: res.ok ? null : res.message,
       last_synced_at: new Date().toISOString(),
-      last_pushed_stock: res.ok ? product.total_stock : null,
+      last_pushed_stock: res.ok ? sellableStock(product) : null,
     }).eq('product_id', productId).eq('marketplace_name', mp);
     await log(res.ok ? 'success' : 'error', 'listing', mp,
       `${MARKETPLACE_META[mp].label} ← ${product.sku} ${res.ok ? (res.status === 'pending' ? 'onaya gönderildi' : 'yayınlandı') : 'yayınlanamadı'}: ${res.message}`);
@@ -180,11 +186,11 @@ export async function pushStock(productIds: string[], sourceMarketplace: Marketp
   }
   const listings = must(await db()
     .from('marketplace_listings')
-    .select('id, marketplace_name, external_product_id, price_override, product:products(id, sku, barcode, price, list_price, total_stock)')
+    .select('id, marketplace_name, external_product_id, price_override, product:products(id, sku, barcode, price, list_price, total_stock, safety_stock)')
     .in('product_id', productIds)
     .eq('listing_status', 'active')) as unknown as Array<{
       id: string; marketplace_name: string; external_product_id: string | null; price_override: number | null;
-      product: { id: string; sku: string; barcode: string; price: number; list_price: number | null; total_stock: number };
+      product: { id: string; sku: string; barcode: string; price: number; list_price: number | null; total_stock: number; safety_stock: number | null };
     }>;
 
   const byMp = new Map<MarketplaceName, typeof listings>();
@@ -205,7 +211,7 @@ export async function pushStock(productIds: string[], sourceMarketplace: Marketp
       const price = l.price_override != null ? Number(l.price_override) : Number(l.product.price);
       return {
         sku: l.product.sku, barcode: l.product.barcode, externalProductId: l.external_product_id,
-        quantity: Math.max(0, l.product.total_stock), price, listPrice: Math.max(price, Number(l.product.list_price ?? l.product.price)),
+        quantity: sellableStock(l.product), price, listPrice: Math.max(price, Number(l.product.list_price ?? l.product.price)),
       };
     });
     let res: AdapterResult;
@@ -216,7 +222,7 @@ export async function pushStock(productIds: string[], sourceMarketplace: Marketp
     }
     const now = new Date().toISOString();
     await Promise.all(ls.map((l) => db().from('marketplace_listings').update(res.ok
-      ? { last_pushed_stock: l.product.total_stock, last_synced_at: now, sync_error_message: null }
+      ? { last_pushed_stock: sellableStock(l.product), last_synced_at: now, sync_error_message: null }
       : { sync_error_message: `Stok gönderilemedi: ${res.message}`, last_synced_at: now }).eq('id', l.id)));
     summary[mp] = { ok: res.ok, count: items.length, message: res.message };
     await noteResults(ls.map((l) => ({ key: jobKey.stock(l.product.id, mp), kind: 'push_stock' as const, mp, ref: l.product.id, payload: { label: l.product.sku }, ok: res.ok, error: res.message })));
@@ -297,7 +303,7 @@ export async function recompute(orderIds: string[]) {
   }
 }
 
-export interface ShipInfo { trackingNumber?: string | null; carrier?: string | null; invoiceNumber?: string | null }
+export interface ShipInfo { trackingNumber?: string | null; carrier?: string | null; invoiceNumber?: string | null; returnReason?: string | null }
 export interface RemoteStatusResult { ok: boolean; message: string; unsupported?: boolean }
 
 /**
@@ -317,9 +323,24 @@ export async function pushOrderStatus(orderId: string, status: OrderStatus, info
     return { ok: false, message };
   }
   if (!adapter.updateOrderStatus) return { ok: false, unsupported: true, message: `${label} için durum gönderimi yok.` };
+  // Panelin 8 durumu → pazaryerlerinin anladığı adımlar
+  const INVOICE_SUPPORTED: MarketplaceName[] = ['trendyol', 'idefix'];
+  let target: OrderStatus | null = status;
+  let skip: string | null = null;
+  if (status === 'approved') target = 'preparing';
+  else if (status === 'invoiced') {
+    if (INVOICE_SUPPORTED.includes(mp) && info.invoiceNumber) target = 'preparing';
+    else { target = null; skip = INVOICE_SUPPORTED.includes(mp) ? `${label} pazaryerine fatura bildirmek için fatura numarası girin.` : `${label} fatura bilgisini API ile almıyor; durum yalnızca panelde değişti.`; }
+  } else if (status === 'returned') {
+    target = null; skip = `İade ${label} üzerinden müşteri tarafından başlatılır; panelde kaydedildi ve stok iade edildi.`;
+  } else if (status === 'new') {
+    target = null; skip = 'Pazaryerinde sipariş "Yeni" durumuna geri alınamaz; yalnızca panelde değişti.';
+  }
   let res: RemoteStatusResult;
   try {
-    res = await adapter.updateOrderStatus({ externalOrderId: order.external_order_id, status, raw: order.raw, items: order.items, ...info });
+    res = target
+      ? await adapter.updateOrderStatus({ externalOrderId: order.external_order_id, status: target, raw: order.raw, items: order.items, ...info })
+      : { ok: false, unsupported: true, message: skip ?? '' };
   } catch (e) {
     res = { ok: false, message: errorMessage(e) };
   }
@@ -338,11 +359,12 @@ export async function pushOrderStatus(orderId: string, status: OrderStatus, info
 /** Siparişi kargoya verildi olarak işaretler (Bugün Kargoda / termin kontrolü bu zamana göre yapılır) ve pazaryerine bildirir */
 export async function markShipped(orderId: string, at?: string, info: ShipInfo = {}) {
   const order = must(await db().from('orders').select('external_order_id, marketplace_name, status').eq('id', orderId).single()) as { external_order_id: string; marketplace_name: MarketplaceName; status: OrderStatus };
-  if (order.status === 'cancelled') throw new Error('İptal edilmiş sipariş kargoya verilemez.');
+  if (isClosedStatus(order.status)) throw new Error('İptal veya iade edilmiş sipariş kargoya verilemez.');
   const shippedAt = at ?? new Date().toISOString();
   const u: Record<string, unknown> = { shipped_at: shippedAt };
   if (info.carrier) u.carrier = info.carrier;
-  if (order.status === 'new' || order.status === 'preparing') u.status = 'shipped';
+  if (info.trackingNumber) u.tracking_number = info.trackingNumber;
+  if (OPEN_STATUSES.includes(order.status)) u.status = 'shipped';
   must(await db().from('orders').update(u).eq('id', orderId).select('id'));
   await recompute([orderId]);
   const cost = must(await db().from('order_costs').select('net_profit, same_day_eligible, same_day_met, fast_eligible, fast_met').eq('order_id', orderId).maybeSingle()) as
@@ -357,9 +379,14 @@ export async function markShipped(orderId: string, at?: string, info: ShipInfo =
 export async function changeOrderStatus(orderId: string, status: OrderStatus, info: ShipInfo = {}) {
   const res = must(await db().rpc('set_order_status', { p_order_id: orderId, p_status: status })) as { affected_product_ids: string[] };
   const order = must(await db().from('orders').select('external_order_id, marketplace_name').eq('id', orderId).single()) as { external_order_id: string; marketplace_name: MarketplaceName };
-  await log(status === 'cancelled' ? 'warning' : 'info', 'order', order.marketplace_name,
-    `#${order.external_order_id} durumu → ${ORDER_STATUS_META[status].label}${res.affected_product_ids.length ? ' (stok havuza iade edildi)' : ''}`);
+  await log(isClosedStatus(status) ? 'warning' : 'info', 'order', order.marketplace_name,
+    `#${order.external_order_id} durumu → ${ORDER_STATUS_META[status].label}${info.returnReason ? ` (${info.returnReason})` : ''}${res.affected_product_ids.length ? ' (stok havuza iade edildi)' : ''}`);
   if (res.affected_product_ids.length) await pushStock(res.affected_product_ids, null);
+  const extra: Record<string, unknown> = {};
+  if (status === 'returned' && info.returnReason) extra.return_reason = info.returnReason.slice(0, 200);
+  if (info.invoiceNumber) extra.invoice_number = info.invoiceNumber;
+  if (info.trackingNumber) extra.tracking_number = info.trackingNumber;
+  if (Object.keys(extra).length) await db().from('orders').update(extra).eq('id', orderId);
   if (status === 'shipped') await db().from('orders').update({ shipped_at: new Date().toISOString() }).eq('id', orderId).is('shipped_at', null);
   await recompute([orderId]);
   const remote = await pushOrderStatus(orderId, status, info);
@@ -420,10 +447,10 @@ export async function reconcile() {
   }
 
   const listings = must(await db().from('marketplace_listings')
-    .select('product_id, last_pushed_stock, sync_error_message, product:products(total_stock)')
-    .eq('listing_status', 'active')) as unknown as Array<{ product_id: string; last_pushed_stock: number | null; sync_error_message: string | null; product: { total_stock: number } }>;
+    .select('product_id, last_pushed_stock, sync_error_message, product:products(total_stock, safety_stock)')
+    .eq('listing_status', 'active')) as unknown as Array<{ product_id: string; last_pushed_stock: number | null; sync_error_message: string | null; product: { total_stock: number; safety_stock: number | null } }>;
   const drift = [...new Set(listings
-    .filter((l) => l.sync_error_message || l.last_pushed_stock === null || l.last_pushed_stock !== l.product.total_stock)
+    .filter((l) => l.sync_error_message || l.last_pushed_stock === null || l.last_pushed_stock !== sellableStock(l.product))
     .map((l) => l.product_id))];
   if (drift.length) await pushStock(drift, null);
 

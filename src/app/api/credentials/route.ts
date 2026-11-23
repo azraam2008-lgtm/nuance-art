@@ -4,6 +4,7 @@ import { encryptSecret, maskSecret } from '@/lib/crypto';
 import { isMarketplace, MARKETPLACE_META, MARKETPLACES } from '@/lib/marketplaces/meta';
 import { GUIDES, hasRequiredKeys } from '@/lib/marketplaces/guides';
 import { log } from '@/lib/sync/engine';
+import { isDemoStore } from '@/lib/demo';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ interface Row {
 // API Secret asla tarayıcıya gönderilmez; yalnızca maskeli hali döner.
 export const GET = handle(async () => {
   const rows = must(await db().from('marketplace_credentials').select('*')) as Row[];
-  const demoMode = process.env.DEMO_MODE === 'true';
+  const demoMode = await isDemoStore();
   return {
     demoMode,
     encryption: Boolean(process.env.CREDENTIALS_ENCRYPTION_KEY),
@@ -33,7 +34,7 @@ export const GET = handle(async () => {
         lastTestedAt: r?.last_tested_at ?? null,
         lastTestOk: r?.last_test_ok ?? null,
         lastOrderSyncAt: r?.last_order_sync_at ?? null,
-        mode: live ? 'live' : demoMode ? 'demo' : 'off',
+        mode: demoMode ? 'demo' : live ? 'live' : 'off',
       };
     }),
   };

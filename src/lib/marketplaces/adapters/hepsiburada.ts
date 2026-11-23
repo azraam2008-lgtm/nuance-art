@@ -224,7 +224,8 @@ function mapHbStatus(s: string): OrderStatus {
   if (v.includes('deliver')) return 'delivered';
   if (v.includes('ship') || v.includes('intransit')) return 'shipped';
   if (v.includes('pack') || v.includes('process')) return 'preparing';
-  if (v.includes('cancel') || v.includes('return')) return 'cancelled';
+  if (v.includes('return') || v.includes('claim')) return 'returned';
+  if (v.includes('cancel')) return 'cancelled';
   return 'new';
 }
 

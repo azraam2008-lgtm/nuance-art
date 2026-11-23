@@ -290,6 +290,7 @@ create table if not exists stores (
   name        text not null default '',
   created_at  timestamptz not null default now()
 );
+alter table stores add column if not exists is_demo boolean not null default false;  -- deneme mağazası (örnek veri, simülasyon)
 
 alter table app_users add column if not exists store_id uuid references stores(id) on delete cascade;
 alter table app_users add column if not exists session_version int not null default 0;
@@ -536,6 +537,42 @@ alter table products add column if not exists variant_attrs jsonb not null defau
 create index if not exists idx_products_group on products(store_id, group_code) where group_code is not null;
 
 -- =====================================================================
+-- 9e) SİPARİŞ DURUMLARI (8 durum) ve İADE
+--  Yeni → Onaylandı → Hazırlanıyor → Faturası kesildi → Kargoda → Teslim edildi
+--  İptal edildi / İade edildi: stok havuza geri eklenir, ciroya sayılmaz.
+-- =====================================================================
+alter table orders drop constraint if exists orders_status_check;
+alter table orders add constraint orders_status_check
+  check (status in ('new','approved','preparing','invoiced','shipped','delivered','cancelled','returned'));
+alter table orders add column if not exists return_reason text;
+alter table orders add column if not exists returned_at timestamptz;
+alter table orders add column if not exists invoice_number text;
+alter table orders add column if not exists tracking_number text;
+
+-- Güvenlik stoğu: pazaryerlerine "havuz − güvenlik stoğu" gönderilir (son adetlerin iki yerde aynı anda satılma riskini azaltır)
+alter table products add column if not exists safety_stock int not null default 0 check (safety_stock >= 0);
+-- Zararına satış koruması: hedef en düşük kâr marjı (%); boşsa mağaza ayarı kullanılır
+alter table products add column if not exists min_margin numeric(6,2);
+
+-- =====================================================================
+-- 9f) İŞLETME GİDERLERİ (kira, personel, muhasebe…) — Kârlılık'ta "işletme net kârı" için
+--  monthly = true: her ay tekrarlanan gider (başlangıç ayından itibaren; bitiş boşsa sürer)
+-- =====================================================================
+create table if not exists expenses (
+  id            uuid primary key default gen_random_uuid(),
+  store_id      uuid not null references stores(id) on delete cascade,
+  category      text not null default 'Diğer',
+  amount        numeric(12,2) not null check (amount >= 0),     -- KDV dahil TL
+  expense_date  date not null,                                  -- tek seferlik: tarih; aylık: başlangıç
+  monthly       boolean not null default false,
+  end_date      date,                                           -- aylık gider için bitiş (isteğe bağlı)
+  note          text not null default '',
+  created_at    timestamptz not null default now()
+);
+create index if not exists idx_expenses_store on expenses(store_id, expense_date desc);
+alter table expenses enable row level security;
+
+-- =====================================================================
 -- FONKSİYONLAR
 -- =====================================================================
 
@@ -639,7 +676,7 @@ begin
       continue;
     end if;
 
-    if p_status <> 'cancelled' then
+    if p_status not in ('cancelled','returned') then
       update products set total_stock = total_stock - v_qty where id = v_product_id;
       insert into stock_movements(product_id, marketplace_name, change_amount, reason, order_id)
       values (v_product_id, p_marketplace, -v_qty, 'sale', v_order_id);
@@ -669,11 +706,12 @@ begin
   if v_order.status = p_status then
     return jsonb_build_object('order_id', p_order_id, 'affected_product_ids', '[]'::jsonb);
   end if;
-  if v_order.status = 'cancelled' then
-    raise exception 'İptal edilmiş sipariş yeniden açılamaz (%).', v_order.external_order_id;
+  if v_order.status in ('cancelled','returned') then
+    raise exception 'İptal veya iade edilmiş sipariş yeniden açılamaz (%).', v_order.external_order_id;
   end if;
 
-  if p_status = 'cancelled' then
+  -- İptal ve iade: satılan adetler ortak stoğa geri eklenir
+  if p_status in ('cancelled','returned') then
     for r in select oi.product_id, sum(oi.quantity)::int as qty
                from order_items oi
                join products p on p.id = oi.product_id
@@ -689,7 +727,9 @@ begin
     end loop;
   end if;
 
-  update orders set status = p_status where id = p_order_id;
+  update orders set status = p_status,
+         returned_at = case when p_status = 'returned' then now() else returned_at end
+   where id = p_order_id;
   return jsonb_build_object('order_id', p_order_id, 'affected_product_ids', to_jsonb(v_affected));
 end $$;
 
@@ -746,7 +786,7 @@ select
   sum(total_amount)::numeric(14,2) as revenue,
   count(*)::int as order_count
 from orders
-where status <> 'cancelled'
+where status not in ('cancelled','returned')
 group by 1, 2, 3;
 
 -- =====================================================================
@@ -795,6 +835,18 @@ alter table app_users               enable row level security;
 -- Tüm sipariş/ürün verisini siler, 10 ürün ve ~6 aylık gerçekçi sipariş geçmişi üretir.
 -- "Kurdele" ürünü 25 stokla ve hiç satışsız başlar (25 → 20 senaryosunu test etmek için).
 -- =====================================================================
+-- Mağazanın ürün, sipariş, stok, günlük ve kuyruk verisini siler (deneme mağazası açılıp kapanırken).
+-- API anahtarları, ayarlar ve kullanıcılar silinmez.
+create or replace function clear_store_data(p_store_id uuid) returns void language plpgsql as $$
+begin
+  if p_store_id is null then raise exception 'Mağaza bilgisi eksik'; end if;
+  delete from order_costs where store_id = p_store_id; delete from order_items where store_id = p_store_id;
+  delete from orders where store_id = p_store_id; delete from stock_movements where store_id = p_store_id;
+  delete from marketplace_listings where store_id = p_store_id; delete from products where store_id = p_store_id;
+  delete from sync_logs where store_id = p_store_id; delete from sync_jobs where store_id = p_store_id;
+  delete from ad_spend where store_id = p_store_id; delete from expenses where store_id = p_store_id;
+end $$;
+
 drop function if exists seed_demo_data();
 create or replace function seed_demo_data(p_store_id uuid) returns jsonb language plpgsql as $$
 declare
@@ -818,11 +870,7 @@ declare
   v_p jsonb; v_prod products%rowtype; v_day int; v_n int; v_mp text; v_r float; v_qty int;
   v_date timestamptz; v_status text; v_res jsonb; v_orders int := 0; v_seq int := 0; v_oid uuid; v_ship timestamptz;
 begin
-  if p_store_id is null then raise exception 'Mağaza bilgisi eksik'; end if;
-  delete from order_costs where store_id = p_store_id; delete from order_items where store_id = p_store_id;
-  delete from orders where store_id = p_store_id; delete from stock_movements where store_id = p_store_id;
-  delete from marketplace_listings where store_id = p_store_id; delete from products where store_id = p_store_id;
-  delete from sync_logs where store_id = p_store_id;
+  perform clear_store_data(p_store_id);
 
   for v_p in select * from jsonb_array_elements(v_products) loop
     insert into products(store_id, sku, barcode, title, description, category, brand, price, list_price, cost_price, total_stock,

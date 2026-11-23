@@ -17,6 +17,7 @@ interface Report {
   missed: { sameDay: number; fast: number; extraCost: number; orders: Array<{ id: string; external_order_id: string; marketplace: string; date: string; kind: string }> };
   uncomputed: number;
   ads?: { totalNet: number; byMarketplace: Record<string, number>; profitAfterAds: number };
+  business?: { orderProfit: number; ads: number; expenses: number; net: number };
 }
 
 const iso = (d: Date) => new Date(d.getTime() + 3 * 3600_000).toISOString().slice(0, 10);
@@ -62,15 +63,20 @@ export default function ProfitPage() {
 
       {loading ? <PageLoader /> : error || !data ? <ErrorBox error={error ?? ''} onRetry={reload} /> : (
         <>
-          {!!data.ads?.totalNet && (
-            <Card className="p-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-              <span>Reklam harcaması (KDV hariç): <b className="tabular-nums">{tl(data.ads.totalNet)}</b></span>
-              <span>Reklam sonrası net kâr: <b className={cx('tabular-nums', data.ads.profitAfterAds < 0 ? 'text-rose-600' : 'text-emerald-700')}>{tl(data.ads.profitAfterAds)}</b></span>
-              <a href="/ads" className="text-indigo-600 text-xs hover:underline">Reklam harcamaları →</a>
+          {data.business && !mp && (
+            <Card className="p-4">
+              <div className="text-sm font-semibold mb-2">İşletmenin gerçek net kârı</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                <div><div className="text-xs text-slate-500">Siparişlerden net kâr</div><div className="font-semibold tabular-nums">{tl(data.business.orderProfit)}</div></div>
+                <div><div className="text-xs text-slate-500">− Reklam (KDV hariç)</div><div className="font-semibold tabular-nums">{tl(data.business.ads)}</div><a href="/ads" className="text-[11px] text-indigo-600">düzenle</a></div>
+                <div><div className="text-xs text-slate-500">− İşletme giderleri</div><div className="font-semibold tabular-nums">{tl(data.business.expenses)}</div><a href="/expenses" className="text-[11px] text-indigo-600">düzenle</a></div>
+                <div className="rounded-lg bg-slate-50 p-2 -m-2"><div className="text-xs text-slate-500">= İşletme net kârı</div><div className={cx('text-lg font-bold tabular-nums', data.business.net < 0 ? 'text-rose-600' : 'text-emerald-700')}>{tl(data.business.net)}</div></div>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-2">Sipariş kârına komisyon, kargo, hizmet bedeli, stopaj, ürün ve ambalaj maliyeti, iade kargosu zaten dahildir. Kira, personel gibi sabit giderleri &quot;Giderler&quot; sayfasından ekleyin.</p>
             </Card>
           )}
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-            <Kpi label="Ciro (KDV dahil)" value={tl(data.total.revenue_gross)} sub={`${data.total.orders} sipariş · ${data.total.cancelled} iptal`} />
+            <Kpi label="Ciro (KDV dahil)" value={tl(data.total.revenue_gross)} sub={`${data.total.orders} sipariş · ${data.total.cancelled} iptal/iade`} />
             <Kpi label="Net kâr" value={tl(data.total.net_profit)} accent={data.total.net_profit < 0 ? 'text-rose-600' : 'text-emerald-700'}
               sub={data.total.estimates ? `${data.total.estimates} sipariş tahmini` : 'Tümü kesin'} icon={data.total.net_profit < 0 ? <TrendingDown className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />} />
             <Kpi label="Net marj" value={`%${data.total.revenue_net ? ((data.total.net_profit / data.total.revenue_net) * 100).toFixed(1) : '0'}`} sub="KDV hariç ciro üzerinden" />

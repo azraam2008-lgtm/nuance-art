@@ -195,7 +195,8 @@ function mapCsStatus(s: string): OrderStatus {
   if (v.includes('teslim') || v.includes('deliver')) return 'delivered';
   if (v.includes('kargo') || v.includes('ship')) return 'shipped';
   if (v.includes('hazır') || v.includes('prepar')) return 'preparing';
-  if (v.includes('iptal') || v.includes('iade') || v.includes('cancel')) return 'cancelled';
+  if (v.includes('iade') || v.includes('return')) return 'returned';
+  if (v.includes('iptal') || v.includes('cancel')) return 'cancelled';
   return 'new';
 }
 

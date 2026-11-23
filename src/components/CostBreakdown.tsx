@@ -127,7 +127,7 @@ export default function CostBreakdown({ orderId, onClose }: { orderId: string | 
           ) : null}
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <Button variant="secondary" loading={busy === 'recompute'} onClick={() => act('recompute')}><RefreshCw className="w-4 h-4" /> Yeniden hesapla</Button>
-            {o && !o.shipped_at && o.status !== 'cancelled' && (
+            {o && !o.shipped_at && o.status !== 'cancelled' && o.status !== 'returned' && (
               <Button loading={busy === 'ship'} onClick={() => act('ship')}><Truck className="w-4 h-4" /> Şimdi kargoya verildi</Button>
             )}
           </div>

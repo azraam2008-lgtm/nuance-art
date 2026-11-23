@@ -1,6 +1,6 @@
 import 'server-only';
 import { db, must } from '@/lib/supabase/server';
-import { isMarketplace, MARKETPLACES } from '@/lib/marketplaces/meta';
+import { isClosedStatus, isMarketplace, MARKETPLACES } from '@/lib/marketplaces/meta';
 import { computeGroup, DEFAULT_SETTINGS } from './engine';
 import { DEFAULT_RATE_TABLES, DEFAULT_RULES, defaultRule } from './defaults';
 import type { CarrierRates, CostPackage, CostResult, CostSettings, FeeRule } from './types';
@@ -148,12 +148,12 @@ async function computeAndStore(orders: OrderRow[]): Promise<number> {
       const first = o.items.find((i) => i.product_id);
       const listing = first?.product_id ? listings.get(`${first.product_id}|${mp}`) : undefined;
       const desi = o.desi ?? o.items.reduce((s, i) => s + (i.product_id ? Number(products.get(i.product_id)?.desi ?? 1) : 1) * i.quantity, 0);
-      const shippedAt = o.shipped_at ?? (['shipped', 'delivered'].includes(o.status) ? o.order_date : null);
+      const shippedAt = o.shipped_at ?? (['shipped', 'delivered', 'returned'].includes(o.status) ? o.order_date : null);
       return {
         id: o.id,
         orderedAt: o.order_date,
         shippedAt,
-        cancelled: o.status === 'cancelled',
+        cancelled: isClosedStatus(o.status),
         desi,
         carrier: o.carrier ?? listing?.carrier ?? null,
         sameDayTag: listing?.same_day_tag ?? false,
@@ -235,7 +235,7 @@ async function firstSalesThisMonth(orders: OrderRow[], rules: FeeRule[]): Promis
     for (const month of months) {
       const from = `${month}-01T00:00:00Z`;
       const d = new Date(from); d.setUTCMonth(d.getUTCMonth() + 1);
-      const all = must(await db().from('orders').select('id, order_date, status, items:order_items(sku)').eq('marketplace_name', mp).gte('order_date', from).lt('order_date', d.toISOString()).neq('status', 'cancelled').order('order_date').order('id')) as unknown as Array<{ id: string; items: Array<{ sku: string }> }>;
+      const all = must(await db().from('orders').select('id, order_date, status, items:order_items(sku)').eq('marketplace_name', mp).gte('order_date', from).lt('order_date', d.toISOString()).not('status', 'in', '(cancelled,returned)').order('order_date').order('id')) as unknown as Array<{ id: string; items: Array<{ sku: string }> }>;
       const seen = new Set<string>();
       for (const o of all) for (const i of o.items) {
         if (!seen.has(i.sku)) { seen.add(i.sku); out.add(`${o.id}|${i.sku}`); }

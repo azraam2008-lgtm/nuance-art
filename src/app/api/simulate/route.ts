@@ -1,13 +1,14 @@
 import { handle, HttpError, readJson } from '@/lib/api';
 import { isMarketplace } from '@/lib/marketplaces/meta';
 import { simulateOrder } from '@/lib/sync/engine';
+import { isDemoStore } from '@/lib/demo';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 // Demo: "X pazaryerinden 1 sipariş simüle et" — gerçek sipariş akışıyla birebir aynı yol
 export const POST = handle(async (req: Request) => {
-  if (process.env.DEMO_MODE !== 'true') throw new HttpError(404, 'Demo modu kapalı (yalnızca geliştirme ortamında DEMO_MODE=true ile açılır).');
+  if (!(await isDemoStore())) throw new HttpError(404, 'Sipariş simülasyonu yalnızca deneme mağazasında çalışır.');
   const b = await readJson<{ marketplace?: string; productId?: string; quantity?: number }>(req);
   if (!isMarketplace(b.marketplace)) throw new HttpError(400, 'Geçersiz pazaryeri.');
   const qty = b.quantity !== undefined ? Math.trunc(Number(b.quantity)) : undefined;

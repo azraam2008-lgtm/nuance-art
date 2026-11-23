@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Calculator, Download, Plus, RefreshCw, Search, Sparkles } from 'lucide-react';
+import { AlertTriangle, Calculator, CheckSquare, Download, FileSpreadsheet, Plus, RefreshCw, Search, Sparkles, Tag, X } from 'lucide-react';
 import ProductCostModal, { type ProductCfg } from '@/components/ProductCostModal';
 import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Empty, ErrorBox, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
 import MarketplaceImport from '@/components/MarketplaceImport';
+import { BulkPriceModal, CsvImportModal } from '@/components/ProductBulk';
 import { STATUS_LABEL, STATUS_STYLE, stockSynced, variantText, type Product } from '@/components/product-shared';
 
 function Thumb({ p, className }: { p: Product; className?: string }) {
@@ -30,6 +31,10 @@ export default function ProductsPage() {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'all' | 'low' | 'error' | 'pending'>('all');
   const [connected, setConnected] = useState<MarketplaceName[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [priceFor, setPriceFor] = useState<string[] | null>(null);
+  const [csvOpen, setCsvOpen] = useState(false);
+  const toggle = (id: string) => setSelected((x) => { const n = new Set(x); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toast = useToast();
   const { bump } = useLive();
 
@@ -75,8 +80,17 @@ export default function ProductsPage() {
     <div className="space-y-4 sm:space-y-6 fade-in">
       <div className="flex flex-wrap gap-2 justify-end">
         {connected.length > 0 && <Button variant="secondary" onClick={() => setImportOpen(true)}><Download className="w-4 h-4" /> Pazaryerindeki ürünleri içe aktar</Button>}
+        <Button variant="secondary" onClick={() => setCsvOpen(true)}><FileSpreadsheet className="w-4 h-4" /> Excel/CSV&apos;den yükle</Button>
         <Link href="/products/new" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white"><Plus className="w-4 h-4" /> Yeni Ürün Ekle</Link>
       </div>
+      {selected.size > 0 && (
+        <Card className="p-3 flex flex-wrap items-center gap-2 sticky top-16 z-20 border-indigo-200 bg-indigo-50">
+          <span className="text-sm font-medium flex items-center gap-1.5"><CheckSquare className="w-4 h-4 text-indigo-600" /> {selected.size} ürün seçildi</span>
+          <span className="flex-1" />
+          <Button onClick={() => setPriceFor([...selected])}><Tag className="w-4 h-4" /> Fiyatları güncelle</Button>
+          <button onClick={() => setSelected(new Set())} className="p-2 text-slate-500" aria-label="Seçimi temizle"><X className="w-4 h-4" /></button>
+        </Card>
+      )}
 
       {loading ? <PageLoader /> : error ? <ErrorBox error={error} onRetry={reload} /> : !products.length ? (
         <Card><Empty>Henüz ürün yok. <Link href="/products/new" className="text-indigo-600 underline">Yeni Ürün Ekle</Link> ile ilk ürününüzü oluşturun — fotoğraflar, açıklama ve fiyatla birlikte tüm bağlı pazaryerlerine gönderilir.</Empty></Card>
@@ -134,8 +148,10 @@ export default function ProductsPage() {
                 const issues = p.listings.filter((l) => l.listing_status === 'error' || !stockSynced(p, l));
                 const live = p.listings.filter((l) => l.listing_status !== 'passive');
                 return (
-                  <Card key={p.id} className="p-3">
-                    <Link href={`/products/${p.id}`} className="flex gap-3">
+                  <Card key={p.id} className={cx('p-3', selected.has(p.id) && 'ring-2 ring-indigo-400')}>
+                    <div className="flex gap-2">
+                    <input type="checkbox" className="w-4 h-4 mt-1 accent-indigo-600 shrink-0" checked={selected.has(p.id)} onChange={() => toggle(p.id)} aria-label="Seç" />
+                    <Link href={`/products/${p.id}`} className="flex gap-3 flex-1 min-w-0">
                       <Thumb p={p} className="w-14 h-20 rounded-lg shrink-0" />
                       <div className="min-w-0 flex-1">
                         <div className="font-medium text-sm line-clamp-2">{p.title}{variantText(p.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(p.variant_attrs)}</span>}</div>
@@ -143,6 +159,7 @@ export default function ProductsPage() {
                         <div className="flex items-center gap-2 mt-1"><span className="font-semibold text-sm">{tl2(p.price)}</span><StockPill p={p} /></div>
                       </div>
                     </Link>
+                    </div>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {live.map((l) => {
                         const pr = p.profits?.[l.marketplace_name];
@@ -168,6 +185,7 @@ export default function ProductsPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                     <tr>
+                      <th className="pl-4 py-3 w-8"><input type="checkbox" className="accent-indigo-600" checked={rows.length > 0 && rows.every((p) => selected.has(p.id))} onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((p) => p.id)) : new Set())} aria-label="Tümünü seç" /></th>
                       <th className="text-left px-4 py-3">Ürün</th>
                       <th className="text-right px-4 py-3">Fiyat / Maliyet</th>
                       <th className="text-center px-4 py-3">Stok</th>
@@ -178,7 +196,8 @@ export default function ProductsPage() {
                     {rows.map((p) => {
                       const issues = p.listings.filter((l) => l.listing_status === 'error' || !stockSynced(p, l));
                       return (
-                        <tr key={p.id} className="hover:bg-slate-50 align-top">
+                        <tr key={p.id} className={cx('hover:bg-slate-50 align-top', selected.has(p.id) && 'bg-indigo-50/60')}>
+                          <td className="pl-4 py-3"><input type="checkbox" className="accent-indigo-600 mt-1" checked={selected.has(p.id)} onChange={() => toggle(p.id)} aria-label="Seç" /></td>
                           <td className="px-4 py-3">
                             <Link href={`/products/${p.id}`} className="flex items-center gap-3 group">
                               <Thumb p={p} className="w-10 h-14 rounded-lg shrink-0" />
@@ -219,6 +238,8 @@ export default function ProductsPage() {
         </>
       )}
       <ProductCostModal product={costFor} onClose={() => setCostFor(null)} />
+      <BulkPriceModal ids={priceFor} onClose={() => { setPriceFor(null); setSelected(new Set()); }} />
+      <CsvImportModal open={csvOpen} onClose={() => setCsvOpen(false)} />
       {connected.length > 0 && <MarketplaceImport open={importOpen} onClose={() => setImportOpen(false)} sources={connected} />}
     </div>
   );

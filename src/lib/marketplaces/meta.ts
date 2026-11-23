@@ -113,16 +113,27 @@ export const ORDER_PREFIX: Record<MarketplaceName, string> = {
   trendyol: 'TY', hepsiburada: 'HB', n11: 'N11', ciceksepeti: 'CS', pazarama: 'PZ', idefix: 'IDF', koctas: 'KT', etsy: 'ETSY',
 };
 
-export const ORDER_STATUSES = ['new', 'preparing', 'shipped', 'delivered', 'cancelled'] as const;
+export const ORDER_STATUSES = ['new', 'approved', 'preparing', 'invoiced', 'shipped', 'delivered', 'cancelled', 'returned'] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export const ORDER_STATUS_META: Record<OrderStatus, { label: string; className: string }> = {
   new: { label: 'Yeni', className: 'bg-blue-100 text-blue-700' },
+  approved: { label: 'Onaylandı', className: 'bg-sky-100 text-sky-700' },
   preparing: { label: 'Hazırlanıyor', className: 'bg-amber-100 text-amber-700' },
+  invoiced: { label: 'Faturası kesildi', className: 'bg-orange-100 text-orange-700' },
   shipped: { label: 'Kargoda', className: 'bg-indigo-100 text-indigo-700' },
-  delivered: { label: 'Teslim Edildi', className: 'bg-emerald-100 text-emerald-700' },
-  cancelled: { label: 'İptal/İade', className: 'bg-rose-100 text-rose-700' },
+  delivered: { label: 'Teslim edildi', className: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { label: 'İptal edildi', className: 'bg-rose-100 text-rose-700' },
+  returned: { label: 'İade edildi', className: 'bg-fuchsia-100 text-fuchsia-700' },
 };
+
+/** Kapanmış (gelir sayılmayan, stoğu iade edilmiş) durumlar */
+export const isClosedStatus = (s: string) => s === 'cancelled' || s === 'returned';
+/** Henüz kargoya verilmemiş açık durumlar (geciken sipariş kontrolü için) */
+export const OPEN_STATUSES: OrderStatus[] = ['new', 'approved', 'preparing', 'invoiced'];
+
+/** Sık görülen iade nedenleri (iade analizi için) */
+export const RETURN_REASONS = ['Ürün hasarlı geldi', 'Yanlış ürün gönderildi', 'Beğenmedi / vazgeçti', 'Ürün açıklamayla uyuşmuyor', 'Beden / ölçü uymadı', 'Geç teslim', 'Diğer'] as const;
 
 export const isMarketplace = (v: unknown): v is MarketplaceName =>
   typeof v === 'string' && (MARKETPLACES as readonly string[]).includes(v);

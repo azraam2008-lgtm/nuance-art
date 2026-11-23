@@ -2,6 +2,7 @@ import { handle, HttpError, readJson } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
 import { isMarketplace } from '@/lib/marketplaces/meta';
 import { computeOrderCosts } from '@/lib/fees/service';
+import { pushStock } from '@/lib/sync/engine';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -17,7 +18,7 @@ interface ListingSettings {
  */
 export const PUT = handle(async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
-  const b = await readJson<{ product?: { costPrice?: number; costVatRate?: number | null; desi?: number; packagingCost?: number; vatRate?: number; lowStockThreshold?: number; price?: number }; listings?: ListingSettings[] }>(req);
+  const b = await readJson<{ product?: { costPrice?: number; costVatRate?: number | null; desi?: number; packagingCost?: number; vatRate?: number; lowStockThreshold?: number; price?: number; safetyStock?: number; minMargin?: number | null }; listings?: ListingSettings[] }>(req);
   const num = (v: unknown, name: string, min = 0, max = 1e7) => {
     if (v === undefined) return undefined;
     if (v === null || v === '') return null;
@@ -35,7 +36,10 @@ export const PUT = handle(async (req: Request, ctx: { params: Promise<{ id: stri
     if (p.vatRate !== undefined) u.vat_rate = num(p.vatRate, 'KDV', 0, 100);
     if (p.lowStockThreshold !== undefined) u.low_stock_threshold = num(p.lowStockThreshold, 'Kritik eşik', 0, 1e6);
     if (p.price !== undefined) u.price = num(p.price, 'Fiyat');
+    if (p.safetyStock !== undefined) u.safety_stock = Math.trunc(Number(num(p.safetyStock, 'Güvenlik stoğu', 0, 1e6) ?? 0));
+    if (p.minMargin !== undefined) u.min_margin = num(p.minMargin, 'En düşük marj', -100, 100);
     if (Object.keys(u).length) must(await db().from('products').update(u).eq('id', id).select('id'));
+    if ('safety_stock' in u) await pushStock([id], null); // pazaryerlerine gösterilen stok değişti
   }
   for (const l of b.listings ?? []) {
     if (!isMarketplace(l.marketplace)) throw new HttpError(400, 'Geçersiz pazaryeri.');

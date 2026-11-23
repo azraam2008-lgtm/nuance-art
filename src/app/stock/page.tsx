@@ -10,10 +10,10 @@ import { variantText } from '@/components/product-shared';
 interface Row {
   id: string; sku: string; title: string; total_stock: number; low_stock_threshold: number; start_stock: number;
   trendyol_sales: number; hepsiburada_sales: number; n11_sales: number; ciceksepeti_sales: number; is_critical: boolean;
-  sales_by_marketplace: Record<string, number>; image_url: string | null; variant_attrs?: Record<string, string> | null;
+  sales_by_marketplace: Record<string, number>; image_url: string | null; variant_attrs?: Record<string, string> | null; safety_stock?: number | null;
   listings: Array<{ marketplace_name: MarketplaceName; listing_status: string; last_pushed_stock: number | null; sync_error_message: string | null; last_synced_at: string | null }>;
 }
-const inSync = (r: Row, l: Row['listings'][number]) => l.listing_status !== 'active' || l.last_pushed_stock === null || l.last_pushed_stock === Math.max(0, r.total_stock);
+const inSync = (r: Row, l: Row['listings'][number]) => l.listing_status !== 'active' || l.last_pushed_stock === null || l.last_pushed_stock === Math.max(0, r.total_stock - (r.safety_stock ?? 0));
 
 export default function StockPage() {
   const { data, error, loading, reload } = useLiveData<{ rows: Row[] }>('/api/stock');

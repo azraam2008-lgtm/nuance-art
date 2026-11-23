@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Check, Clock, Rocket } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Clock, FlaskConical, Rocket } from 'lucide-react';
 import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useToast } from '@/components/live';
 import { BrandMark, BrandName } from '@/components/Brand';
@@ -113,7 +113,14 @@ function Wizard() {
                 })}
               </div>
               <div className="flex flex-wrap justify-between gap-2 pt-2">
-                <Button variant="ghost" onClick={() => setStep('done')}><Clock className="w-4 h-4" /> Şimdilik atla</Button>
+                <span className="flex flex-wrap gap-1">
+                  <Button variant="ghost" onClick={() => setStep('done')}><Clock className="w-4 h-4" /> Şimdilik atla</Button>
+                  <Button variant="ghost" loading={busy} onClick={async () => {
+                    setBusy(true);
+                    try { await api('/api/demo', { method: 'POST', body: { enable: true } }); window.location.href = '/'; }
+                    catch (e) { toast((e as Error).message, 'err'); setBusy(false); }
+                  }}><FlaskConical className="w-4 h-4" /> Önce örnek verilerle dene</Button>
+                </span>
                 <Button disabled={!picked.length} onClick={() => go(1)}>{picked.length ? `${picked.length} pazaryerini bağla` : 'Pazaryeri seçin'} <ArrowRight className="w-4 h-4" /></Button>
               </div>
             </div>

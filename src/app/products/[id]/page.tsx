@@ -57,12 +57,16 @@ export default function ProductDetailPage() {
     try {
       const priceOverrides: Record<string, number | null> = {};
       for (const [mp, v] of Object.entries(form.overrides)) priceOverrides[mp] = v.trim() === '' ? null : Number(v.replace(',', '.'));
-      const r = await api<{ stock: Record<string, { ok: boolean; message: string }>; content: Record<string, { ok: boolean; message: string }> }>(`/api/products/${id}`, {
+      const r = await api<{ stock: Record<string, { ok: boolean; message: string }>; content: Record<string, { ok: boolean; message: string }>; warnings?: Array<{ label: string; netProfit: number; margin: number; minMargin: number | null }> }>(`/api/products/${id}`, {
         method: 'PUT',
         body: { title: form.title, description: form.description, price: Number(form.price.replace(',', '.')), listPrice: form.listPrice ? Number(form.listPrice.replace(',', '.')) : null, costPrice: Number(form.costPrice.replace(',', '.')), images: form.images, priceOverrides },
       });
       const fails = [...Object.entries(r.stock), ...Object.entries(r.content)].filter(([, x]) => !x.ok);
       toast(fails.length ? `${MARKETPLACE_META[fails[0][0] as MarketplaceName]?.label}: ${fails[0][1].message}` : 'Kaydedildi ve pazaryerlerine gönderildi.', fails.length ? 'warn' : 'ok');
+      if (r.warnings?.length) {
+        const w = r.warnings[0];
+        toast(`⚠ Dikkat: ${w.label} pazaryerinde bu fiyatla ${w.netProfit < 0 ? `zarar ediyorsunuz (${w.netProfit.toLocaleString('tr-TR')} ₺)` : `kâr marjı %${(w.margin * 100).toFixed(1)}, hedefiniz %${w.minMargin}`}${r.warnings.length > 1 ? ` · toplam ${r.warnings.length} uyarı` : ''}. Fiyat Hesaplayıcı'dan en düşük fiyatı görebilirsiniz.`, 'err');
+      }
       setEdit(false); bump(); reload();
     } catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(null); }
   }

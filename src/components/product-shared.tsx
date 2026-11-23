@@ -8,7 +8,7 @@ export interface Product {
   id: string; sku: string; barcode: string; title: string; brand: string; category: string; vat_rate: number; price: number; cost_price: number; created_at: string;
   total_stock: number; low_stock_threshold: number; image_url: string | null; images: string[]; listings: Listing[];
   cost_vat_rate: number | null; desi: number; packaging_cost: number; profits: Record<string, Profit>;
-  group_code?: string | null; variant_attrs?: Record<string, string> | null;
+  group_code?: string | null; variant_attrs?: Record<string, string> | null; safety_stock?: number | null; min_margin?: number | null;
 }
 
 /** Seçenek etiketi: {Renk: Kırmızı, Beden: M} → "Kırmızı / M" */
@@ -23,7 +23,7 @@ export const STATUS_STYLE: Record<LStatus, string> = {
 export const STATUS_LABEL: Record<LStatus, string> = { active: 'Yayında', pending: 'Onay bekliyor', error: 'Hata', passive: 'Pasif' };
 
 /** İlan stoğu pazaryerine gönderilen son değerle aynı mı? */
-export function stockSynced(p: { total_stock: number }, l: Listing) {
-  return l.listing_status !== 'active' || l.last_pushed_stock === null || l.last_pushed_stock === p.total_stock;
+export function stockSynced(p: { total_stock: number; safety_stock?: number | null }, l: Listing) {
+  return l.listing_status !== 'active' || l.last_pushed_stock === null || l.last_pushed_stock === Math.max(0, p.total_stock - (p.safety_stock ?? 0));
 }
 
