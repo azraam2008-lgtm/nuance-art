@@ -1,6 +1,7 @@
 import { handle, istanbulDate } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
 import { isClosedStatus, isMarketplace, MARKETPLACES } from '@/lib/marketplaces/meta';
+import { expenseShare, type ExpenseRow } from '@/lib/finance/expenses';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,6 +89,10 @@ export const GET = handle(async (req: Request) => {
   for (const r of adRows) adsByMp[r.marketplace_name] = (adsByMp[r.marketplace_name] ?? 0) + Number(r.amount) / 1.2;
   const adsTotal = Object.values(adsByMp).reduce((s, v) => s + v, 0);
 
+  // İşletme giderleri (kira, personel…): KDV dahil girilir, aralığa düşen payı alınır. Pazaryeri filtresinde gösterilmez.
+  const expRows = isMarketplace(mp) ? [] : ((await db().from('expenses').select('category, amount, expense_date, monthly, end_date')).data as ExpenseRow[] | null ?? []);
+  const expensesTotal = Math.round(expRows.reduce((t, e) => t + expenseShare(e, from, to), 0) * 100) / 100;
+
   const round = (a: Agg) => Object.fromEntries(Object.entries(a).map(([k, v]) => [k, Math.round(v * 100) / 100]));
   return {
     range: { from, to },
@@ -102,6 +107,12 @@ export const GET = handle(async (req: Request) => {
       totalNet: Math.round(adsTotal * 100) / 100,
       byMarketplace: Object.fromEntries(Object.entries(adsByMp).map(([k, v]) => [k, Math.round(v * 100) / 100])),
       profitAfterAds: Math.round((total.net_profit - adsTotal) * 100) / 100,
+    },
+    business: {
+      orderProfit: Math.round(total.net_profit * 100) / 100,
+      ads: Math.round(adsTotal * 100) / 100,
+      expenses: expensesTotal,
+      net: Math.round((total.net_profit - adsTotal - expensesTotal) * 100) / 100,
     },
   };
 });

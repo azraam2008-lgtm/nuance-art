@@ -555,6 +555,24 @@ alter table products add column if not exists safety_stock int not null default 
 alter table products add column if not exists min_margin numeric(6,2);
 
 -- =====================================================================
+-- 9f) İŞLETME GİDERLERİ (kira, personel, muhasebe…) — Kârlılık'ta "işletme net kârı" için
+--  monthly = true: her ay tekrarlanan gider (başlangıç ayından itibaren; bitiş boşsa sürer)
+-- =====================================================================
+create table if not exists expenses (
+  id            uuid primary key default gen_random_uuid(),
+  store_id      uuid not null references stores(id) on delete cascade,
+  category      text not null default 'Diğer',
+  amount        numeric(12,2) not null check (amount >= 0),     -- KDV dahil TL
+  expense_date  date not null,                                  -- tek seferlik: tarih; aylık: başlangıç
+  monthly       boolean not null default false,
+  end_date      date,                                           -- aylık gider için bitiş (isteğe bağlı)
+  note          text not null default '',
+  created_at    timestamptz not null default now()
+);
+create index if not exists idx_expenses_store on expenses(store_id, expense_date desc);
+alter table expenses enable row level security;
+
+-- =====================================================================
 -- FONKSİYONLAR
 -- =====================================================================
 
@@ -826,7 +844,7 @@ begin
   delete from orders where store_id = p_store_id; delete from stock_movements where store_id = p_store_id;
   delete from marketplace_listings where store_id = p_store_id; delete from products where store_id = p_store_id;
   delete from sync_logs where store_id = p_store_id; delete from sync_jobs where store_id = p_store_id;
-  delete from ad_spend where store_id = p_store_id;
+  delete from ad_spend where store_id = p_store_id; delete from expenses where store_id = p_store_id;
 end $$;
 
 drop function if exists seed_demo_data();
