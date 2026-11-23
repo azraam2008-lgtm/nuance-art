@@ -20,6 +20,18 @@ Bu dosya, projenin claude.ai sohbetinde yapılan işin özetidir. Yeni bir oturu
 - **Reklam (`/ads`):** Pazaryerleri reklam API'si açmıyor; sayfa her pazaryeri için rehber + panel linki verir, girilen reklam harcaması (`ad_spend`) Kârlılık'ta düşülür.
 - **Demo modu yok.** Yalnızca `DEMO_MODE=true` ortam değişkeni verilirse çalışır.
 
+## Geliştirme standardı (kullanıcının ana talimatı, 2026-11-23)
+Hedef: Trendyol, Hepsiburada, N11 (ve diğer bağlı pazaryerleri) üzerinden satan işletmelerin tüm operasyonunu yönettiği, abonelikle satılabilecek çok kiracılı bir SaaS.
+- Önce ilgili kodu anla; çalışan özellikleri ve mevcut veritabanını koru, gereksiz yeniden yazma yok. Mevcut tasarım dilini ve bileşenleri yeniden kullan.
+- Gerçek API desteği olmayan işlemi çalışıyormuş gibi gösterme; desteklenmeyeni açıkça "desteklenmiyor" diye belirt.
+- Başarısız işlem kullanıcıdan saklanmaz: pazaryeri bazında ayrı sonuç göster, kayda yaz, kontrollü yeniden dene. İşlemler idempotent olmalı.
+- Büyük mimari değişiklik (veri modeli, kuyruk, durum modeli, barındırma) kullanıcı onayı olmadan yapılmaz.
+- Masaüstü ve telefon uyumlu olmalı.
+- Modül modül ilerle; her görevde yalnızca ilgili dosyaları incele. Önceden analiz edilmiş mimariyi yeniden keşfetme.
+- Her görev sonunda kısa rapor: değişen dosyalar, yapılanlar, test sonuçları, kalan sorunlar.
+- Yapay zekâ maliyeti oluşturma; önce deterministik analizler.
+- Geliştirme sırası (onaylanacak): analiz → entegrasyon altyapısı → ürün/stok → sipariş/kargo → finans → akıllı özellikler → test/güvenlik.
+
 ## Teknik yapı
 - **Çatı:** Next.js 15 App Router, Tailwind 3.4, lucide-react, Recharts, Supabase (supabase-js 2.x).
 - **Supabase erişimi:** Yalnızca sunucu tarafında, service_role ile (`src/lib/supabase/server.ts`). RLS açık, anon'a hiçbir izin yok.
