@@ -81,7 +81,7 @@ export default function OrdersPage() {
         {shipFor && (
           <div className="space-y-4">
             <p className="text-sm text-slate-600">Sipariş "Kargoda" olarak işaretlenecek ve <b>{label(shipFor)}</b> pazaryerine bildirilecek. Pazaryerinin anlaşmalı kargosuyla gönderdiyseniz alanları boş bırakabilirsiniz; kendi kargonuzla gönderdiyseniz takip numarasını yazın.</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Kargo takip numarası (isteğe bağlı)"><input className={inputClass} value={shipForm.trackingNumber} onChange={(e) => setShipForm({ ...shipForm, trackingNumber: e.target.value })} /></Field>
               <Field label="Kargo firması (isteğe bağlı)"><input className={inputClass} placeholder="Aras, Yurtiçi, PTT…" value={shipForm.carrier} onChange={(e) => setShipForm({ ...shipForm, carrier: e.target.value })} /></Field>
             </div>
@@ -97,11 +97,11 @@ export default function OrdersPage() {
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sipariş no, müşteri veya ürün ara…" className={`${inputClass} pl-9`} />
         </div>
-        <select value={marketplace} onChange={(e) => { setMarketplace(e.target.value); setPage(0); }} className={`${inputClass} !w-auto`}>
+        <select value={marketplace} onChange={(e) => { setMarketplace(e.target.value); setPage(0); }} className={`${inputClass} !w-auto flex-1 sm:flex-none`}>
           <option value="">Tüm Pazaryerleri</option>
           {MARKETPLACES.map((m) => <option key={m} value={m}>{MARKETPLACE_META[m].label}</option>)}
         </select>
-        <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }} className={`${inputClass} !w-auto`}>
+        <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }} className={`${inputClass} !w-auto flex-1 sm:flex-none`}>
           <option value="">Tüm Durumlar</option>
           {ORDER_STATUSES.map((s) => <option key={s} value={s}>{ORDER_STATUS_META[s].label}</option>)}
         </select>
@@ -110,7 +110,36 @@ export default function OrdersPage() {
       {loading ? <PageLoader /> : error ? <ErrorBox error={error} onRetry={reload} /> : (
         <>
           <div className="text-xs text-slate-500">{data?.total.toLocaleString('tr-TR')} sipariş</div>
-          <Card className="overflow-x-auto">
+          {/* Telefon: kart listesi */}
+          <div className="md:hidden space-y-2">
+            {!data?.orders.length && <Card><Empty>Kriterlere uygun sipariş yok.</Empty></Card>}
+            {data?.orders.map((o) => (
+              <Card key={o.id} className="p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <MarketplaceBadge name={o.marketplace_name} />
+                  <span className="font-mono text-xs text-slate-500 truncate">#{o.external_order_id.split('/')[0]}</span>
+                  <span className="ml-auto text-[11px] text-slate-500 whitespace-nowrap">{fmtDate(o.order_date)}</span>
+                </div>
+                <div>
+                  <div className="font-medium text-sm">{o.customer_name}</div>
+                  <div className="text-xs text-slate-600">{o.items.map((i) => `${i.quantity}x ${i.product_title}`).join(', ')}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold tabular-nums">{tl2(o.total_amount)}</span>
+                  <button onClick={() => setDetail(o.id)} className="text-xs"><ProfitBadge value={costOf(o)?.net_profit} status={costOf(o)?.status} /></button>
+                  <span className="flex-1" />
+                  <select value={o.status} disabled={o.status === 'cancelled'} onChange={(e) => changeStatus(o, e.target.value as OrderStatus)}
+                    className={cx('text-xs rounded-md px-2 py-1.5 border-0 font-medium', ORDER_STATUS_META[o.status].className)}>
+                    {ORDER_STATUSES.map((st) => <option key={st} value={st}>{ORDER_STATUS_META[st].label}</option>)}
+                  </select>
+                  {!o.shipped_at && o.status !== 'cancelled' && (
+                    <button onClick={() => openShip(o)} className="p-2 rounded-md bg-indigo-50 text-indigo-700" aria-label="Kargoya verildi"><Truck className="w-4 h-4" /></button>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+          <Card className="overflow-x-auto hidden md:block">
             {!data?.orders.length ? <Empty>Kriterlere uygun sipariş yok.</Empty> : (
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase">

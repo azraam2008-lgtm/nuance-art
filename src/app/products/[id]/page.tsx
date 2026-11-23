@@ -110,7 +110,7 @@ export default function ProductDetailPage() {
           ) : images.length ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={images[Math.min(img, images.length - 1)]} alt="" className="w-full aspect-[2/3] object-cover rounded-xl bg-slate-100" />
+              <img src={images[Math.min(img, images.length - 1)]} alt="" className="w-full max-w-xs sm:max-w-none mx-auto aspect-[2/3] object-cover rounded-xl bg-slate-100" />
               <div className="grid grid-cols-5 gap-1.5">
                 {images.map((u, i) => (
                   <button key={u} onClick={() => setImg(i)} className={cx('relative rounded-lg overflow-hidden border-2', i === img ? 'border-indigo-500' : 'border-transparent')}>
@@ -174,8 +174,8 @@ export default function ProductDetailPage() {
                 <div className={cx('text-3xl font-bold tabular-nums', out ? 'text-rose-600' : low ? 'text-amber-600' : 'text-slate-900')}>{p.total_stock}</div>
                 <div className="text-xs text-slate-500">Kritik eşik {p.low_stock_threshold}{out ? ' · TÜKENDİ — tüm pazaryerlerinde 0' : low ? ' · kritik seviyede' : ''}</div>
               </div>
-              <div className="flex items-center gap-2 ml-auto">
-                <input className={`${inputClass} !w-24`} inputMode="numeric" placeholder="Adet" value={delta} onChange={(e) => setDelta(e.target.value.replace(/\D/g, ''))} />
+              <div className="flex items-center gap-2 sm:ml-auto w-full sm:w-auto">
+                <input className={`${inputClass} !w-20 sm:!w-24`} inputMode="numeric" placeholder="Adet" value={delta} onChange={(e) => setDelta(e.target.value.replace(/\D/g, ''))} />
                 <Button variant="secondary" loading={busy === 'stock'} onClick={() => adjust(1)}><Plus className="w-4 h-4" /> Stok girişi</Button>
                 <Button variant="secondary" disabled={busy === 'stock'} onClick={() => adjust(-1)}><Minus className="w-4 h-4" /> Düş</Button>
               </div>

@@ -136,14 +136,14 @@ export default function ProfitPage() {
             <Card className="overflow-x-auto">
               <div className="px-5 py-3 border-b border-slate-100 font-semibold">Ürün kârlılığı</div>
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th className="text-left px-4 py-2">Ürün</th><th className="text-right px-4 py-2">Adet</th><th className="text-right px-4 py-2">Net kâr</th><th className="text-right px-4 py-2">Adet başı</th></tr></thead>
+                <thead className="bg-slate-50 text-slate-500 text-xs uppercase"><tr><th className="text-left px-4 py-2">Ürün</th><th className="text-right px-4 py-2">Adet</th><th className="text-right px-4 py-2">Net kâr</th><th className="text-right px-4 py-2 hidden sm:table-cell">Adet başı</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.products.map((x) => (
                     <tr key={x.sku}>
-                      <td className="px-4 py-2"><div className="font-medium truncate max-w-[260px]">{x.title}</div><div className="text-[11px] text-slate-500 font-mono">{x.sku}</div></td>
+                      <td className="px-4 py-2"><div className="font-medium truncate max-w-[140px] sm:max-w-[260px]">{x.title}</div><div className="text-[11px] text-slate-500 font-mono">{x.sku}</div></td>
                       <td className="px-4 py-2 text-right">{x.units}</td>
                       <td className={cx('px-4 py-2 text-right tabular-nums font-semibold', x.net_profit < 0 ? 'text-rose-600' : 'text-emerald-700')}>{tl2(x.net_profit)}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{tl2(x.units ? x.net_profit / x.units : 0)}</td>
+                      <td className="px-4 py-2 text-right tabular-nums hidden sm:table-cell">{tl2(x.units ? x.net_profit / x.units : 0)}</td>
                     </tr>
                   ))}
                 </tbody>

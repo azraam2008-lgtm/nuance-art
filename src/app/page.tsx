@@ -40,7 +40,7 @@ export default function DashboardPage() {
   ].filter(Boolean) as Array<{ href: string; cls: string; text: string }>;
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-4 sm:space-y-6 fade-in">
       {h.products === 0 && (
         <Card className="p-6 flex flex-wrap items-center gap-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
           <PackagePlus className="w-8 h-8 text-amber-300" />
@@ -53,20 +53,20 @@ export default function DashboardPage() {
           {alerts.map((a) => <Link key={a.text} href={a.href} className={cx('flex items-center gap-2 border rounded-xl px-4 py-2.5 text-sm', a.cls)}><AlertTriangle className="w-4 h-4" />{a.text}</Link>)}
         </div>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         <Kpi icon={<Wallet className="w-4 h-4" />} accent="bg-indigo-50 text-indigo-600" label="Bu Ayki Toplam Ciro" value={tl(kpis.monthRevenue)} sub={monthName} />
         <Link href="/profit" className="block h-full"><Kpi icon={<PiggyBank className="w-4 h-4" />} accent={kpis.monthNetProfit < 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'} label="Bu Ayki Net Kâr"
           value={tl(kpis.monthNetProfit)} sub={kpis.monthRevenue ? `Marj ~%${((kpis.monthNetProfit / (kpis.monthRevenue / 1.2)) * 100).toFixed(1)} · ${kpis.monthEstimates} tahmini` : 'Komisyon, kargo, bedeller sonrası'} /></Link>
         <Kpi icon={<ShoppingCart className="w-4 h-4" />} accent="bg-blue-50 text-blue-600" label="Toplam Sipariş Sayısı" value={kpis.monthOrders.toLocaleString('tr-TR')} sub="Bu ay, iptaller hariç" />
         <Kpi icon={<Trophy className="w-4 h-4" />} accent="bg-orange-50 text-orange-600" label="En Çok Satan Pazaryeri"
           value={kpis.topMarketplace ? MARKETPLACE_META[kpis.topMarketplace].label : '—'} sub={kpis.topMarketplace ? `${tl(kpis.topMarketplaceRevenue)} bu ay` : 'Bu ay satış yok'} />
-        <Kpi icon={<AlertTriangle className="w-4 h-4" />} accent={kpis.criticalCount ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}
+        <Kpi wide icon={<AlertTriangle className="w-4 h-4" />} accent={kpis.criticalCount ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}
           label="Kritik Stoktaki Ürün" value={String(kpis.criticalCount)} sub={kpis.criticalCount ? 'Eşik altında — tedarik gerekli' : 'Tüm ürünler güvende'} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2 p-5">
-          <div className="flex items-center justify-between mb-3">
+        <Card className="lg:col-span-2 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <h3 className="font-semibold">Ciro Trendi (Pazaryeri Kırılımlı)</h3>
             <div className="inline-flex bg-slate-100 rounded-lg p-0.5 text-xs">
               {(['monthly', 'daily'] as const).map((r) => (
@@ -76,13 +76,13 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          <div className="h-72">
+          <div className="h-60 sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
               {range === 'monthly' ? (
                 <BarChart data={data.monthly}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={compact} tick={{ fontSize: 11 }} width={70} />
+                  <YAxis tickFormatter={compact} tick={{ fontSize: 11 }} width={56} />
                   <Tooltip formatter={(v: number, n: string) => [tl2(v), MARKETPLACE_META[n as MarketplaceName]?.label ?? n]} />
                   <Legend formatter={(v: string) => MARKETPLACE_META[v as MarketplaceName]?.label ?? v} wrapperStyle={{ fontSize: 12 }} />
                   {active.map((m) => <Bar key={m} dataKey={m} stackId="a" fill={MARKETPLACE_META[m].color} />)}
@@ -91,7 +91,7 @@ export default function DashboardPage() {
                 <LineChart data={data.daily}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={3} />
-                  <YAxis tickFormatter={compact} tick={{ fontSize: 11 }} width={70} />
+                  <YAxis tickFormatter={compact} tick={{ fontSize: 11 }} width={56} />
                   <Tooltip formatter={(v: number, n: string) => [tl2(v), MARKETPLACE_META[n as MarketplaceName]?.label ?? n]} />
                   <Legend formatter={(v: string) => MARKETPLACE_META[v as MarketplaceName]?.label ?? v} wrapperStyle={{ fontSize: 12 }} />
                   {active.map((m) => <Line key={m} type="monotone" dataKey={m} stroke={MARKETPLACE_META[m].color} strokeWidth={2} dot={false} />)}
@@ -133,19 +133,25 @@ export default function DashboardPage() {
             <h3 className="font-semibold">Son Siparişler</h3>
             <Link href="/orders" className="text-sm text-indigo-600">Tümünü gör →</Link>
           </div>
-          <table className="w-full text-sm">
-            <tbody className="divide-y divide-slate-100">
-              {data.recent.map((o) => (
-                <tr key={o.id}>
-                  <td className="px-5 py-2.5"><MarketplaceBadge name={o.marketplace_name} /></td>
-                  <td className="px-2 py-2.5"><div className="font-medium">{o.customer_name}</div><div className="text-xs text-slate-500 truncate max-w-[220px]">{o.items.map((i) => `${i.quantity}x ${i.product_title}`).join(', ')}</div></td>
-                  <td className="px-2 py-2.5 text-right font-medium">{tl2(o.total_amount)}</td>
-                  <td className="px-2 py-2.5"><StatusBadge status={o.status} /></td>
-                  <td className="px-5 py-2.5 text-xs text-slate-500 whitespace-nowrap">{fmtDate(o.order_date)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="divide-y divide-slate-100 text-sm">
+            {data.recent.map((o) => (
+              <li key={o.id}>
+                <Link href="/orders" className="flex items-center gap-3 px-4 sm:px-5 py-2.5 hover:bg-slate-50">
+                  <MarketplaceBadge name={o.marketplace_name} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{o.customer_name}</div>
+                    <div className="text-xs text-slate-500 truncate">{o.items.map((i) => `${i.quantity}x ${i.product_title}`).join(', ')}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-medium tabular-nums">{tl2(o.total_amount)}</div>
+                    <div className="text-[11px] text-slate-500 whitespace-nowrap sm:hidden">{new Date(o.order_date).toLocaleDateString('tr-TR')}</div>
+                  </div>
+                  <span className="shrink-0"><StatusBadge status={o.status} /></span>
+                  <span className="hidden sm:block text-xs text-slate-500 whitespace-nowrap w-28 text-right">{fmtDate(o.order_date)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </Card>
         <Card>
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -167,14 +173,14 @@ export default function DashboardPage() {
   );
 }
 
-function Kpi({ icon, accent, label, value, sub }: { icon: React.ReactNode; accent: string; label: string; value: string; sub: string }) {
+function Kpi({ icon, accent, label, value, sub, wide }: { icon: React.ReactNode; accent: string; label: string; value: string; sub: string; wide?: boolean }) {
   return (
-    <Card className="p-5 h-full">
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-slate-500">{label}</span>
-        <span className={cx('w-9 h-9 rounded-lg flex items-center justify-center', accent)}>{icon}</span>
+    <Card className={cx('p-3 sm:p-5 h-full', wide && 'col-span-2 lg:col-span-1')}>
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-xs sm:text-sm text-slate-500 leading-tight">{label}</span>
+        <span className={cx('w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0', accent)}>{icon}</span>
       </div>
-      <div className="text-2xl font-bold mt-2">{value}</div>
+      <div className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2 truncate">{value}</div>
       <div className="text-xs text-slate-500 mt-1">{sub}</div>
     </Card>
   );

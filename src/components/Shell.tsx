@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Activity, Boxes, Calculator, LayoutDashboard, LogOut, Megaphone, Package, PlusCircle, Scale, Settings, ShoppingCart, TrendingUp, UserCog, Zap, Radio } from 'lucide-react';
+import { Activity, Boxes, Calculator, LayoutDashboard, LogOut, Megaphone, Menu, Package, Plus, PlusCircle, Scale, Settings, ShoppingCart, TrendingUp, UserCog, X, Zap, Radio } from 'lucide-react';
 import { BrandMark } from './Brand';
 import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { LiveProvider, ToastProvider, api, useLive, useLiveData, useToast } from './live';
@@ -32,6 +32,8 @@ export default function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const bare = BARE.includes(path);
   const [status, setStatus] = useState<Status | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => { setMenuOpen(false); }, [path]);
 
   useEffect(() => {
     if (bare) return;
@@ -60,21 +62,60 @@ export default function Shell({ children }: { children: ReactNode }) {
     <ToastProvider>
       <LiveProvider>
         <div className="flex min-h-screen">
-          <Sidebar status={status} />
+          {/* Masaüstü: sabit yan menü */}
+          <div className="hidden lg:flex sticky top-0 h-screen"><Sidebar status={status} /></div>
+          {/* Telefon/tablet: soldan açılan menü */}
+          {menuOpen && (
+            <div className="lg:hidden fixed inset-0 z-50 flex">
+              <div className="absolute inset-0 bg-slate-900/50" onClick={() => setMenuOpen(false)} />
+              <div className="relative h-full shadow-2xl fade-in"><Sidebar status={status} onClose={() => setMenuOpen(false)} /></div>
+            </div>
+          )}
           <main className="flex-1 min-w-0 flex flex-col">
-            <Header demo={status.demoMode} />
+            <Header demo={status.demoMode} onMenu={() => setMenuOpen(true)} />
             <div className="flex flex-1 min-h-0">
-              <section className="flex-1 min-w-0 p-6">{children}</section>
+              <section className="flex-1 min-w-0 p-3 sm:p-6 pb-24 lg:pb-6">{children}</section>
               <LiveFeed />
             </div>
           </main>
+          <BottomNav onMenu={() => setMenuOpen(true)} />
         </div>
       </LiveProvider>
     </ToastProvider>
   );
 }
 
-function Sidebar({ status }: { status: Status }) {
+/** Telefonda alt sekme çubuğu: en sık kullanılan ekranlar tek dokunuşla */
+function BottomNav({ onMenu }: { onMenu: () => void }) {
+  const path = usePathname();
+  const items = [
+    { href: '/', label: 'Panel', icon: LayoutDashboard },
+    { href: '/products', label: 'Ürünler', icon: Package },
+    { href: '/products/new', label: 'Ekle', icon: Plus, exact: true, primary: true },
+    { href: '/orders', label: 'Siparişler', icon: ShoppingCart },
+  ];
+  return (
+    <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 grid grid-cols-5" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {items.map((n) => {
+        const active = isActive(path, n);
+        const Icon = n.icon;
+        return n.primary ? (
+          <Link key={n.href} href={n.href} className="flex flex-col items-center justify-center py-1.5">
+            <span className="w-11 h-11 -mt-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg"><Icon className="w-5 h-5" /></span>
+            <span className="text-[10px] text-slate-600 mt-0.5">{n.label}</span>
+          </Link>
+        ) : (
+          <Link key={n.href} href={n.href} className={cx('flex flex-col items-center justify-center py-2 text-[10px]', active ? 'text-indigo-600' : 'text-slate-500')}>
+            <Icon className="w-5 h-5 mb-0.5" />{n.label}
+          </Link>
+        );
+      })}
+      <button onClick={onMenu} className="flex flex-col items-center justify-center py-2 text-[10px] text-slate-500"><Menu className="w-5 h-5 mb-0.5" />Menü</button>
+    </nav>
+  );
+}
+
+function Sidebar({ status, onClose }: { status: Status; onClose?: () => void }) {
   const path = usePathname();
   const { data } = useLiveData<{ credentials: Array<{ marketplace: string; mode: string }> }>('/api/credentials');
   const live = data?.credentials.filter((c) => c.mode === 'live') ?? [];
@@ -83,13 +124,14 @@ function Sidebar({ status }: { status: Status }) {
     window.location.href = '/login';
   }
   return (
-    <aside className="w-60 shrink-0 bg-slate-900 text-slate-300 flex flex-col">
+    <aside className="w-64 lg:w-60 shrink-0 bg-slate-900 text-slate-300 flex flex-col h-full overflow-y-auto">
       <div className="px-5 py-5 border-b border-slate-800 flex items-center gap-3">
         <BrandMark size={34} />
         <div className="leading-tight min-w-0">
           <div className="text-white font-semibold truncate">{status.companyName || 'Mağazam'}</div>
           <div className="text-xs text-slate-400 truncate">Pazaryeri Yönetim Paneli</div>
         </div>
+        {onClose && <button onClick={onClose} className="ml-auto p-1.5 rounded hover:bg-slate-800" aria-label="Menüyü kapat"><X className="w-5 h-5" /></button>}
       </div>
       <nav className="flex-1 p-3 space-y-1">
         {NAV.map((n) => {
@@ -97,7 +139,7 @@ function Sidebar({ status }: { status: Status }) {
           const Icon = n.icon;
           return (
             <Link key={n.href} href={n.href}
-              className={cx('flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm hover:bg-slate-800 hover:text-white', active && 'bg-slate-800 text-white',
+              className={cx('flex items-center gap-2.5 px-3 py-2.5 lg:py-2 rounded-lg text-sm hover:bg-slate-800 hover:text-white', active && 'bg-slate-800 text-white',
                 n.href === '/products/new' && !active && 'text-amber-200')}>
               <Icon className={cx('w-4 h-4', active && 'text-amber-300')} />{n.label}
             </Link>
@@ -126,7 +168,7 @@ function Sidebar({ status }: { status: Status }) {
   );
 }
 
-function Header({ demo }: { demo: boolean }) {
+function Header({ demo, onMenu }: { demo: boolean; onMenu: () => void }) {
   const path = usePathname();
   const toast = useToast();
   const { bump } = useLive();
@@ -148,18 +190,21 @@ function Header({ demo }: { demo: boolean }) {
   }
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
-      <h1 className="text-lg font-semibold">{title}</h1>
-      <div className="flex items-center gap-2">
+    <header className="h-14 sm:h-16 bg-white border-b border-slate-200 flex items-center justify-between gap-2 px-3 sm:px-6 shrink-0 sticky top-0 z-30">
+      <div className="flex items-center gap-2 min-w-0">
+        <button onClick={onMenu} className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-slate-100" aria-label="Menüyü aç"><Menu className="w-5 h-5" /></button>
+        <h1 className="text-base sm:text-lg font-semibold truncate">{title}</h1>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
         {demo && (
           <>
-            <select value={mp} onChange={(e) => setMp(e.target.value as MarketplaceName)} className="text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white">
+            <select value={mp} onChange={(e) => setMp(e.target.value as MarketplaceName)} className="hidden sm:block text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white">
               {MARKETPLACES.map((m) => <option key={m} value={m}>{MARKETPLACE_META[m].label}</option>)}
             </select>
-            <Button variant="secondary" onClick={simulate} loading={busy}><Zap className="w-4 h-4" /> Sipariş simüle et</Button>
+            <Button variant="secondary" onClick={simulate} loading={busy} className="hidden sm:inline-flex"><Zap className="w-4 h-4" /> Sipariş simüle et</Button>
           </>
         )}
-        {path !== '/products/new' && <Link href="/products/new" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium bg-slate-900 text-white hover:bg-slate-800"><PlusCircle className="w-4 h-4" /> Yeni Ürün</Link>}
+        {path !== '/products/new' && <Link href="/products/new" className="hidden lg:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium bg-slate-900 text-white hover:bg-slate-800"><PlusCircle className="w-4 h-4" /> Yeni Ürün</Link>}
       </div>
     </header>
   );
@@ -172,7 +217,7 @@ function LiveFeed() {
   const { data } = useLiveData<{ logs: Log[] }>('/api/logs');
   const border = { info: 'border-slate-300', success: 'border-emerald-400', warning: 'border-amber-400', error: 'border-rose-400' };
   return (
-    <aside className="w-80 shrink-0 border-l border-slate-200 bg-white hidden xl:flex flex-col sticky top-0 h-[calc(100vh-4rem)]">
+    <aside className="w-80 shrink-0 border-l border-slate-200 bg-white hidden xl:flex flex-col sticky top-16 h-[calc(100vh-4rem)]">
       <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
         <div className="font-semibold text-sm flex items-center gap-1.5"><Activity className="w-4 h-4" /> Canlı Senkron Akışı</div>
         <span title={connected ? 'Supabase Realtime bağlı' : 'Realtime yok — 15 sn yoklama'} className={cx('flex items-center gap-1 text-[11px]', connected ? 'text-emerald-600' : 'text-slate-400')}>

@@ -30,6 +30,7 @@ Hedef: Trendyol, Hepsiburada, N11 (ve diğer bağlı pazaryerleri) üzerinden sa
 - Modül modül ilerle; her görevde yalnızca ilgili dosyaları incele. Önceden analiz edilmiş mimariyi yeniden keşfetme.
 - Her görev sonunda kısa rapor: değişen dosyalar, yapılanlar, test sonuçları, kalan sorunlar.
 - Yapay zekâ maliyeti oluşturma; önce deterministik analizler.
+- Pazaryerleri arasında öncelik yok; hepsine aynı özen.
 - Geliştirme sırası (onaylanacak): analiz → entegrasyon altyapısı → ürün/stok → sipariş/kargo → finans → akıllı özellikler → test/güvenlik.
 
 ## Teknik yapı
@@ -95,4 +96,5 @@ Yerel geliştirme için `.env.example` dosyasını `.env.local` olarak kopyala. 
   - Diğerlerinde yeni eklenenler: sipariş durumu gönderimi (özellikle Pazarama durum kodları, idefix yolu, Çiçeksepeti "readyforcargo" uçları, N11 `rest/order/v1/update`) ve kategori listesi uçları (Hepsiburada, N11, Çiçeksepeti, Pazarama, idefix).
   - Yolların çoğu Ayarlar > Gelişmiş'ten (`extra_config`) değiştirilebilir.
 - **cron-job.org kurulumu:** Yapılmadı.
-- **Mobil görünüm:** Panel menüsü telefonda daralmıyor (kenar çubuğu sabit). Teyze telefondan kullanacaksa ele alınmalı.
+- **Telefon uyumu (yapıldı):** `lg` altında yan menü soldan açılır çekmece, altta sekme çubuğu (`Shell.tsx`). Tablolu sayfalarda (Ürünler, Stok, Siparişler) `md` altında kart listesi gösterilir; yeni tablolu sayfa eklerken aynı düzeni kullan.
+- **Kullanıcı kararları (2026-11-23):** Bütün pazaryerleri eşit öncelikli (öne çıkan yok). Sipariş durumları 8'e çıkarılabilir, daha fazlası değil. İş kuyruğu, varyant ve barındırma (ücretli plan) için kullanıcı önce açıklama istedi; onay bekliyor.

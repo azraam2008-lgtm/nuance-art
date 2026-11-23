@@ -68,20 +68,56 @@ export default function StockPage() {
         <Card className="p-4"><div className="text-xs text-slate-500">Kritik seviyede</div><div className={cx('text-2xl font-bold', stats.crit > 0 && 'text-amber-600')}>{stats.crit}</div></Card>
         <Card className="p-4"><div className="text-xs text-slate-500">Eşitlenmemiş ilan</div><div className={cx('text-2xl font-bold', issues.length > 0 && 'text-rose-600')}>{issues.length}</div></Card>
       </div>
-      <div className="bg-indigo-50 border border-indigo-100 text-indigo-900 rounded-xl p-4 text-sm flex gap-3 items-start">
-        <Boxes className="w-5 h-5 shrink-0 mt-0.5" />
+      <div className="bg-indigo-50 border border-indigo-100 text-indigo-900 rounded-xl p-4 text-sm flex flex-col sm:flex-row gap-3 items-start">
+        <Boxes className="w-5 h-5 shrink-0 mt-0.5 hidden sm:block" />
         <div className="flex-1">
           <b>Ortak stok havuzu:</b> Bir pazaryerinde satış olduğunda stok tek sayaçtan düşer ve yeni stok diğer tüm pazaryerlerine otomatik gönderilir.
           Örn. 25 adet − 3 Trendyol − 2 N11 = <b>20</b> → diğer pazaryerlerine 20 gönderilir. Pazaryeri hücresindeki küçük sayı, o pazaryerine en son gönderilen stoktur.
         </div>
-        <div className="flex flex-col gap-1.5 shrink-0">
+        <div className="flex sm:flex-col items-center sm:items-stretch gap-3 sm:gap-1.5 shrink-0 w-full sm:w-auto">
           <Button loading={syncing} onClick={syncAll}><RefreshCw className="w-4 h-4" /> Tümünü eşitle</Button>
           <label className="text-xs flex items-center gap-1.5"><input type="checkbox" checked={onlyIssues} onChange={(e) => setOnlyIssues(e.target.checked)} /> Yalnızca sorunlular</label>
         </div>
       </div>
 
       {loading ? <PageLoader /> : error ? <ErrorBox error={error} onRetry={reload} /> : (
-        <Card className="overflow-x-auto">
+        <>
+        {/* Telefon: kart listesi */}
+        <div className="md:hidden space-y-2">
+          {!rows.length && <Card><Empty>{onlyIssues ? 'Tüm ilanlar eşit — sorun yok.' : 'Stok havuzunda ürün yok.'}</Empty></Card>}
+          {rows.map((r) => (
+            <Card key={r.id} className={cx('p-3', r.is_critical && 'border-rose-200 bg-rose-50/40')}>
+              <div className="flex items-center gap-3">
+                <Link href={`/products/${r.id}`} className="flex items-center gap-2 min-w-0 flex-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {r.image_url ? <img src={r.image_url} alt="" className="w-10 h-12 rounded object-cover shrink-0" /> : <div className="w-10 h-12 rounded bg-slate-100 shrink-0" />}
+                  <div className="min-w-0"><div className="font-medium text-sm line-clamp-2">{r.title}</div><div className="text-[11px] text-slate-500 font-mono">{r.sku} · eşik {r.low_stock_threshold}</div></div>
+                </Link>
+                <div className="text-right shrink-0">
+                  <div className={cx('text-xl font-bold', r.is_critical ? 'text-rose-600' : 'text-slate-900')}>{r.total_stock}</div>
+                  {r.total_stock <= 0 ? <span className="bg-rose-600 text-white text-[10px] font-semibold rounded-full px-2 py-0.5">TÜKENDİ</span> : r.is_critical && <span className="bg-amber-500 text-white text-[10px] font-semibold rounded-full px-2 py-0.5">KRİTİK</span>}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1 mt-2">
+                {r.listings.map((l) => {
+                  const ok = inSync(r, l) && l.listing_status !== 'error';
+                  return (
+                    <span key={l.marketplace_name} className={cx('text-[10px] px-1.5 py-0.5 rounded border', l.listing_status === 'pending' ? 'border-amber-200 text-amber-700' : ok ? 'border-emerald-200 text-emerald-700' : 'border-rose-300 text-rose-700 font-semibold')}
+                      title={l.sync_error_message ?? ''}>
+                      {MARKETPLACE_META[l.marketplace_name].label}: {l.listing_status === 'pending' ? 'onayda' : `${l.last_pushed_stock ?? '—'}${ok ? ' ✓' : ' ⚠'}`}
+                    </span>
+                  );
+                })}
+              </div>
+              {r.listings.some((l) => l.sync_error_message) && <div className="text-[11px] text-rose-600 mt-1">{r.listings.find((l) => l.sync_error_message)?.sync_error_message}</div>}
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-[11px] text-slate-500">Başlangıç {r.start_stock} · satılan {Object.values(r.sales_by_marketplace ?? {}).reduce((a, b) => a + b, 0)}</span>
+                <Button variant="secondary" className="text-xs px-2 py-1" onClick={() => { setEditing(r); setQty('10'); setReason('restock'); }}><Plus className="w-3 h-3" /> Stok</Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+        <Card className="overflow-x-auto hidden md:block">
           {!rows.length ? <Empty>{onlyIssues ? 'Tüm ilanlar eşit — sorun yok.' : 'Stok havuzunda ürün yok.'}</Empty> : (
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
@@ -133,6 +169,7 @@ export default function StockPage() {
             </table>
           )}
         </Card>
+        </>
       )}
 
       <Modal open={!!editing} onClose={() => setEditing(null)} title={`Stok Hareketi — ${editing?.sku ?? ''}`}>
@@ -147,7 +184,7 @@ export default function StockPage() {
           <Field label="Miktar" hint={reason === 'manual_adjust' ? 'Azaltmak için negatif değer girin (örn. -3).' : undefined}>
             <input type="number" step="1" min={reason === 'restock' ? 1 : undefined} className={inputClass} value={qty} onChange={(e) => setQty(e.target.value)} required />
           </Field>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditing(null)}>Vazgeç</Button>
             <Button type="submit" loading={busy}>Kaydet ve Tüm Pazaryerlerine Gönder</Button>
           </div>

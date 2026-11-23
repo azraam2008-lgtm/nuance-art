@@ -217,7 +217,7 @@ export default function NewProductPage() {
           return (
             <li key={s.key}>
               <button type="button" onClick={() => canGo(i) && setStep(i)} disabled={!canGo(i)}
-                className={cx('w-full flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition',
+                className={cx('w-full flex items-center justify-center md:justify-start gap-2 rounded-xl border px-2 md:px-3 py-2 text-left text-sm transition',
                   i === step ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : ok ? 'border-emerald-200 bg-white text-slate-700' : 'border-slate-200 bg-white text-slate-500',
                   !canGo(i) && 'opacity-50 cursor-not-allowed')}>
                 <span className={cx('w-6 h-6 rounded-full grid place-items-center text-xs shrink-0', i === step ? 'bg-indigo-600 text-white' : ok ? 'bg-emerald-500 text-white' : 'bg-slate-100')}>
@@ -229,14 +229,15 @@ export default function NewProductPage() {
           );
         })}
       </ol>
+      <div className="md:hidden text-sm font-medium text-slate-700 -mt-1">Adım {step + 1} / {STEPS.length} — {STEPS[step].label}</div>
 
-      <Card className="p-5">
+      <Card className="p-4 sm:p-5">
         {step === 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2"><Field label="Ürün adı *" hint={`${f.title.length}/100 — Trendyol başlığı 100 karakterle sınırlar. Marka + ürün + öne çıkan özellik yazın.`}>
               <input className={inputClass} maxLength={150} value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="Örn. El Yapımı Saten Kurdele Toka 3'lü Set - Pudra" />
             </Field></div>
-            <Field label="Marka *"><input className={inputClass} value={f.brand} onChange={(e) => set('brand', e.target.value)} placeholder="Nuance Art" /></Field>
+            <Field label="Marka *"><input className={inputClass} value={f.brand} onChange={(e) => set('brand', e.target.value)} placeholder="Markanızın adı" /></Field>
             <Field label="Kategori (iç kullanım) *" hint="Panelde gruplama için. Pazaryeri kategorisini 4. adımda seçeceksiniz."><input className={inputClass} value={f.category} onChange={(e) => set('category', e.target.value)} placeholder="Saç Aksesuarı" /></Field>
             <Field label="Barkod *" hint="Ürünün üzerindeki barkod. Yoksa 'Oluştur' ile iç barkod üretebilirsiniz.">
               <div className="flex gap-2"><input className={inputClass} value={f.barcode} onChange={(e) => set('barcode', e.target.value.replace(/\s/g, ''))} />
