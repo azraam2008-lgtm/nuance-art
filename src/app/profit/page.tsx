@@ -16,6 +16,7 @@ interface Report {
   losses: Array<{ id: string; external_order_id: string; marketplace: string; date: string; net_profit: number; revenue_gross: number; reason: string }>;
   missed: { sameDay: number; fast: number; extraCost: number; orders: Array<{ id: string; external_order_id: string; marketplace: string; date: string; kind: string }> };
   uncomputed: number;
+  ads?: { totalNet: number; byMarketplace: Record<string, number>; profitAfterAds: number };
 }
 
 const iso = (d: Date) => new Date(d.getTime() + 3 * 3600_000).toISOString().slice(0, 10);
@@ -61,6 +62,13 @@ export default function ProfitPage() {
 
       {loading ? <PageLoader /> : error || !data ? <ErrorBox error={error ?? ''} onRetry={reload} /> : (
         <>
+          {!!data.ads?.totalNet && (
+            <Card className="p-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+              <span>Reklam harcaması (KDV hariç): <b className="tabular-nums">{tl(data.ads.totalNet)}</b></span>
+              <span>Reklam sonrası net kâr: <b className={cx('tabular-nums', data.ads.profitAfterAds < 0 ? 'text-rose-600' : 'text-emerald-700')}>{tl(data.ads.profitAfterAds)}</b></span>
+              <a href="/ads" className="text-indigo-600 text-xs hover:underline">Reklam harcamaları →</a>
+            </Card>
+          )}
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
             <Kpi label="Ciro (KDV dahil)" value={tl(data.total.revenue_gross)} sub={`${data.total.orders} sipariş · ${data.total.cancelled} iptal`} />
             <Kpi label="Net kâr" value={tl(data.total.net_profit)} accent={data.total.net_profit < 0 ? 'text-rose-600' : 'text-emerald-700'}

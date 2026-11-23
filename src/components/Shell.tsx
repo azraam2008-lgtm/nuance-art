@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Activity, Boxes, Calculator, LayoutDashboard, LogOut, Package, PlusCircle, Scale, Settings, ShoppingCart, TrendingUp, Zap, Radio } from 'lucide-react';
+import { Activity, Boxes, Calculator, LayoutDashboard, LogOut, Megaphone, Package, PlusCircle, Scale, Settings, ShoppingCart, TrendingUp, UserCog, Zap, Radio } from 'lucide-react';
 import { BrandMark } from './Brand';
 import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { LiveProvider, ToastProvider, api, useLive, useLiveData, useToast } from './live';
@@ -17,13 +17,15 @@ const NAV = [
   { href: '/profit', label: 'Kârlılık', icon: TrendingUp },
   { href: '/pricing', label: 'Fiyat Hesaplayıcı', icon: Calculator },
   { href: '/rules', label: 'Maliyet Kuralları', icon: Scale },
+  { href: '/ads', label: 'Reklam', icon: Megaphone },
   { href: '/settings', label: 'API Bağlantıları', icon: Settings },
+  { href: '/account', label: 'Hesabım', icon: UserCog },
 ];
-const BARE = ['/login', '/setup', '/onboarding'];
+const BARE = ['/login', '/setup', '/signup', '/forgot', '/reset', '/onboarding'];
 const isActive = (path: string, n: { href: string; exact?: boolean }) =>
   n.href === '/' ? path === '/' : n.exact ? path === n.href : path.startsWith(n.href) && !(n.href === '/products' && path === '/products/new');
 
-interface Status { hasUser: boolean; user: { email: string; name: string } | null; onboarded: boolean; companyName: string | null; demoMode: boolean }
+interface Status { user: { email: string; name: string } | null; onboarded: boolean; companyName: string | null; demoMode: boolean }
 
 export default function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
@@ -85,8 +87,8 @@ function Sidebar({ status }: { status: Status }) {
       <div className="px-5 py-5 border-b border-slate-800 flex items-center gap-3">
         <BrandMark size={34} />
         <div className="leading-tight min-w-0">
-          <div className="text-white font-semibold">Nuance Art</div>
-          <div className="text-xs text-slate-400 truncate">{status.companyName ?? 'Pazaryeri Yönetim Paneli'}</div>
+          <div className="text-white font-semibold truncate">{status.companyName || 'Mağazam'}</div>
+          <div className="text-xs text-slate-400 truncate">Pazaryeri Yönetim Paneli</div>
         </div>
       </div>
       <nav className="flex-1 p-3 space-y-1">
@@ -116,7 +118,7 @@ function Sidebar({ status }: { status: Status }) {
         </Link>
         <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
           <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-white text-[11px] font-semibold">{status.user!.name.slice(0, 1).toUpperCase()}</div>
-          <div className="flex-1 min-w-0"><div className="text-slate-200 truncate">{status.user!.name}</div><div className="text-[10px] text-slate-500 truncate">{status.user!.email}</div></div>
+          <Link href="/account" title="Hesabım" className="flex-1 min-w-0 hover:text-white"><div className="text-slate-200 truncate">{status.user!.name}</div><div className="text-[10px] text-slate-500 truncate">{status.user!.email}</div></Link>
           <button onClick={logout} title="Çıkış yap" className="p-1.5 rounded hover:bg-slate-800 hover:text-white"><LogOut className="w-4 h-4" /></button>
         </div>
       </div>

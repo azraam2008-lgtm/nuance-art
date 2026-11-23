@@ -1,9 +1,8 @@
 import type { OrderStatus } from '../meta';
 import type {
-  AdapterResult, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder,
-  ProductPayload, RemoteProduct, StockUpdate,
+  AdapterResult, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { chunk, errorMessage, num, request, str } from '../http';
+import { cachedCategories, chunk, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
 
 /**
  * Koçtaş Pazaryeri adaptörü — Koçtaş satıcı operasyonları Mirakl platformunda yürür.
@@ -116,6 +115,63 @@ export class KoctasAdapter implements MarketplaceAdapter {
       externalId: str(o.offer_id), sku: str(o.shop_sku), barcode: str(o.product_sku), title: str(o.product_title), description: '', category: '', brand: '',
       vatRate: 20, price: num(o.price), listPrice: num(o.price), costPrice: 0, stock: num(o.quantity), images: [], attributes: {},
     }));
+  }
+
+  /**
+   * Sipariş durumu → Koçtaş (Mirakl):
+   *  Hazırlanıyor → OR21 siparişi kabul et · Kargoda → OR23 takip no (varsa) + OR24 kargoya verildi
+   *  İptal → kabul beklerken OR21 ret, sonrasında OR29 iptal.
+   */
+  async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
+    const o = rec(u.raw);
+    const id = encodeURIComponent(str(o.order_id) || u.externalOrderId);
+    const lines = recs(o.order_lines).map((l) => str(l.order_line_id)).filter(Boolean);
+    const state = str(o.order_state);
+    try {
+      this.ensureBase();
+      switch (u.status) {
+        case 'preparing':
+          if (state && state !== 'WAITING_ACCEPTANCE') return { ok: true, message: 'Koçtaş siparişi zaten kabul edilmiş.' };
+          if (!lines.length) return { ok: false, message: 'Koçtaş sipariş satırları bulunamadı.' };
+          await request(`${this.base}/api/orders/${id}/accept?${this.shop()}`, { method: 'PUT', headers: this.headers, json: { order_lines: lines.map((lid) => ({ id: lid, accepted: true })) } });
+          return { ok: true, message: 'Koçtaş\'ta sipariş kabul edildi (Hazırlanıyor).' };
+        case 'shipped':
+          if (u.trackingNumber) {
+            await request(`${this.base}/api/orders/${id}/tracking?${this.shop()}`, { method: 'PUT', headers: this.headers, json: { carrier_name: u.carrier ?? undefined, tracking_number: u.trackingNumber } });
+          }
+          await request(`${this.base}/api/orders/${id}/ship?${this.shop()}`, { method: 'PUT', headers: this.headers });
+          return { ok: true, message: `Koçtaş\'ta sipariş "kargoya verildi" yapıldı${u.trackingNumber ? ` (takip: ${u.trackingNumber})` : ''}.` };
+        case 'cancelled':
+          if (state === 'WAITING_ACCEPTANCE' && lines.length) {
+            await request(`${this.base}/api/orders/${id}/accept?${this.shop()}`, { method: 'PUT', headers: this.headers, json: { order_lines: lines.map((lid) => ({ id: lid, accepted: false })) } });
+            return { ok: true, message: 'Koçtaş\'ta sipariş reddedildi.' };
+          }
+          await request(`${this.base}/api/orders/${id}/cancel?${this.shop()}`, { method: 'PUT', headers: this.headers });
+          return { ok: true, message: 'Koçtaş\'ta sipariş iptal edildi.' };
+        case 'delivered':
+          return notSupported('Koçtaş\'ta teslimatı müşteri/operatör onaylar.');
+        default:
+          return notSupported('Koçtaş\'ta sipariş "Yeni" durumuna geri alınamaz.');
+      }
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
+  }
+
+  /** Koçtaş (Mirakl H11) kategori araması */
+  async searchCategories(q: string): Promise<CategoryOption[]> {
+    this.ensureBase();
+    const all = await cachedCategories(`koctas:${this.base}`, async () => {
+      const res = await request<{ hierarchies?: unknown[] }>(`${this.base}/api/hierarchies?${this.shop()}`, { headers: this.headers });
+      return flattenCategories(res?.hierarchies ?? [], { id: ['code'], name: ['label'], parent: ['parent_code'] });
+    });
+    return searchIn(all, q);
+  }
+
+  /** Mirakl'da ürün içeriği operatöre aittir; teklif açıklaması ve fiyatı güncellenir */
+  async updateProduct(p: ProductPayload): Promise<AdapterResult> {
+    const r = await this.createProduct(p);
+    return r.ok ? { ...r, message: 'Koçtaş teklif bilgileri güncellendi (başlık ve görseller Koçtaş kataloğundan gelir).' } : r;
   }
 }
 

@@ -1,7 +1,7 @@
 import type { MarketplaceName } from '../meta';
 import { MARKETPLACE_META, ORDER_PREFIX } from '../meta';
 import type {
-  AdapterResult, MarketplaceAdapter, NormalizedOrder, ProductPayload, RemoteProduct, StockUpdate,
+  AdapterResult, MarketplaceAdapter, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
 
 const wait = (min: number, max: number) => new Promise((r) => setTimeout(r, min + Math.random() * (max - min)));
@@ -58,5 +58,15 @@ export class DemoAdapter implements MarketplaceAdapter {
       { ...base, externalId: 'TY-88203', sku: 'TRR-044', barcode: '8690000001124', title: 'Sukulent Teraryum Seti (Cam Fanus)', category: 'Bahçe & Bitki', price: 399.9, listPrice: 449.9, stock: 22, costPrice: 160 },
       { ...base, externalId: 'TY-88317', sku: 'KRD-002', barcode: '8690000001131', title: 'Saten Kurdele 2,5 cm x 10 m - Lacivert', category: 'Hediye Paketleme', price: 49.9, listPrice: 59.9, stock: 40, costPrice: 18 },
     ].map((p) => ({ ...p, description: `${p.title} — Trendyol mağazasından aktarıldı.` }));
+  }
+
+  async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
+    await wait(100, 300);
+    return { ok: true, message: `[Simülasyon] ${MARKETPLACE_META[this.name].label} sipariş durumu: ${u.status}` };
+  }
+
+  async updateProduct(): Promise<AdapterResult> {
+    await wait(100, 300);
+    return { ok: true, message: `[Simülasyon] ${MARKETPLACE_META[this.name].label} ürün içeriği güncellendi.` };
   }
 }

@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Search, Truck } from 'lucide-react';
 import CostBreakdown, { ProfitBadge } from '@/components/CostBreakdown';
 import { MARKETPLACES, MARKETPLACE_META, ORDER_STATUSES, ORDER_STATUS_META, type OrderStatus } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
-import { Card, Empty, ErrorBox, MarketplaceBadge, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
+import { Button, Card, Empty, ErrorBox, Field, MarketplaceBadge, Modal, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
 
 interface Order {
   id: string; external_order_id: string; marketplace_name: string; customer_name: string; total_amount: number; status: OrderStatus; order_date: string;
@@ -23,6 +23,18 @@ export default function OrdersPage() {
   const [detail, setDetail] = useState<string | null>(null);
   const toast = useToast();
   const { bump } = useLive();
+  const [shipFor, setShipFor] = useState<Order | null>(null);
+  const [shipForm, setShipForm] = useState({ trackingNumber: '', carrier: '' });
+  const [busy, setBusy] = useState(false);
+
+  type Remote = { ok: boolean; message: string; unsupported?: boolean } | undefined;
+  const label = (o: Order) => MARKETPLACE_META[o.marketplace_name as keyof typeof MARKETPLACE_META]?.label ?? o.marketplace_name;
+  function report(o: Order, local: string, remote: Remote) {
+    if (!remote) { toast(local); return; }
+    if (remote.ok) toast(`${local} ${label(o)} pazaryerine de bildirildi.`);
+    else if (remote.unsupported) toast(`${local} ${remote.message}`, 'warn');
+    else toast(`${local} Ancak ${label(o)} pazaryerine gönderilemedi: ${remote.message}`, 'err');
+  }
 
   useEffect(() => { const t = setTimeout(() => { setDebounced(q); setPage(0); }, 300); return () => clearTimeout(t); }, [q]);
 
@@ -31,29 +43,55 @@ export default function OrdersPage() {
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   async function changeStatus(o: Order, next: OrderStatus) {
-    if (next === 'cancelled' && !window.confirm(`#${o.external_order_id} iptal/iade olarak işaretlenecek ve stok havuza iade edilecek. Emin misiniz?`)) return;
+    if (next === 'shipped') { openShip(o); return; }
+    if (next === 'cancelled' && !window.confirm(`#${o.external_order_id.split('/')[0]} iptal edilecek, stok havuza iade edilecek ve ${label(o)} pazaryerine iptal bildirilecek. Emin misiniz?`)) return;
     try {
-      await api(`/api/orders/${o.id}`, { method: 'PATCH', body: { status: next } });
-      toast(next === 'cancelled' ? 'Sipariş iptal edildi, stok iade edildi ve pazaryerlerine gönderildi.' : `Durum: ${ORDER_STATUS_META[next].label}`, next === 'cancelled' ? 'warn' : 'ok');
+      const r = await api<{ remote?: Remote }>(`/api/orders/${o.id}`, { method: 'PATCH', body: { status: next } });
+      report(o, next === 'cancelled' ? 'Sipariş iptal edildi, stok iade edildi.' : `Durum: ${ORDER_STATUS_META[next].label}.`, r.remote);
       bump();
     } catch (e) {
       toast((e as Error).message, 'err');
     }
   }
 
-  async function ship(o: Order) {
+  function openShip(o: Order) {
+    setShipForm({ trackingNumber: '', carrier: '' });
+    setShipFor(o);
+  }
+
+  async function ship() {
+    if (!shipFor) return;
+    setBusy(true);
     try {
-      const r = await api<{ cost: { net_profit: number } | null }>(`/api/orders/${o.id}/ship`, { method: 'POST', body: {} });
-      toast(`#${o.external_order_id.split('/')[0]} kargoya verildi — net kâr ${tl2(r.cost?.net_profit ?? 0)}`);
+      const r = await api<{ cost: { net_profit: number } | null; remote?: Remote }>(`/api/orders/${shipFor.id}/ship`, { method: 'POST', body: shipForm });
+      report(shipFor, `#${shipFor.external_order_id.split('/')[0]} kargoya verildi — net kâr ${tl2(r.cost?.net_profit ?? 0)}.`, r.remote);
+      setShipFor(null);
       bump();
     } catch (e) {
       toast((e as Error).message, 'err');
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <div className="space-y-4 fade-in">
       <CostBreakdown orderId={detail} onClose={() => setDetail(null)} />
+      <Modal open={!!shipFor} onClose={() => setShipFor(null)} title={shipFor ? `#${shipFor.external_order_id.split('/')[0]} kargoya verildi` : ''}>
+        {shipFor && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">Sipariş "Kargoda" olarak işaretlenecek ve <b>{label(shipFor)}</b> pazaryerine bildirilecek. Pazaryerinin anlaşmalı kargosuyla gönderdiyseniz alanları boş bırakabilirsiniz; kendi kargonuzla gönderdiyseniz takip numarasını yazın.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Kargo takip numarası (isteğe bağlı)"><input className={inputClass} value={shipForm.trackingNumber} onChange={(e) => setShipForm({ ...shipForm, trackingNumber: e.target.value })} /></Field>
+              <Field label="Kargo firması (isteğe bağlı)"><input className={inputClass} placeholder="Aras, Yurtiçi, PTT…" value={shipForm.carrier} onChange={(e) => setShipForm({ ...shipForm, carrier: e.target.value })} /></Field>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setShipFor(null)}>Vazgeç</Button>
+              <Button loading={busy} onClick={ship}><Truck className="w-4 h-4" /> Kargoya verildi</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
@@ -106,7 +144,7 @@ export default function OrdersPage() {
                       <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{fmtDate(o.order_date)}</td>
                       <td className="px-2 py-3">
                         {!o.shipped_at && o.status !== 'cancelled' && (
-                          <button onClick={() => ship(o)} title="Kargoya verildi olarak işaretle" className="p-1.5 rounded-md text-slate-500 hover:bg-indigo-50 hover:text-indigo-700"><Truck className="w-4 h-4" /></button>
+                          <button onClick={() => openShip(o)} title="Kargoya verildi olarak işaretle" className="p-1.5 rounded-md text-slate-500 hover:bg-indigo-50 hover:text-indigo-700"><Truck className="w-4 h-4" /></button>
                         )}
                       </td>
                     </tr>

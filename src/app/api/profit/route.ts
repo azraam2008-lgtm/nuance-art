@@ -80,6 +80,14 @@ export const GET = handle(async (req: Request) => {
     }
   }
 
+  // Reklam harcamaları (KDV dahil girilir; kâr hesabında KDV hariç tutar düşülür)
+  let adQ = db().from('ad_spend').select('marketplace_name, amount').gte('spend_date', from).lte('spend_date', to);
+  if (isMarketplace(mp)) adQ = adQ.eq('marketplace_name', mp);
+  const adRows = (await adQ).data as Array<{ marketplace_name: string; amount: number }> | null ?? [];
+  const adsByMp: Record<string, number> = {};
+  for (const r of adRows) adsByMp[r.marketplace_name] = (adsByMp[r.marketplace_name] ?? 0) + Number(r.amount) / 1.2;
+  const adsTotal = Object.values(adsByMp).reduce((s, v) => s + v, 0);
+
   const round = (a: Agg) => Object.fromEntries(Object.entries(a).map(([k, v]) => [k, Math.round(v * 100) / 100]));
   return {
     range: { from, to },
@@ -90,5 +98,10 @@ export const GET = handle(async (req: Request) => {
     losses: losses.sort((a, b) => a.net_profit - b.net_profit).slice(0, 50),
     missed: { ...missed, orders: missed.orders.slice(0, 50) },
     uncomputed,
+    ads: {
+      totalNet: Math.round(adsTotal * 100) / 100,
+      byMarketplace: Object.fromEntries(Object.entries(adsByMp).map(([k, v]) => [k, Math.round(v * 100) / 100])),
+      profitAfterAds: Math.round((total.net_profit - adsTotal) * 100) / 100,
+    },
   };
 });

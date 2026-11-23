@@ -5,7 +5,9 @@ Trendyol, Hepsiburada, N11, Çiçeksepeti, Pazarama, idefix, Koçtaş ve Etsy i�
 - **Bir kez gir, her yerde yayınla:** Ürünü fotoğraflarıyla (sürükle-bırak yükleme, istediğiniz sırayla), açıklaması ve fiyatıyla bir kez girin; bağlı tüm pazaryerlerine aynı görseller, aynı sırada, aynı açıklamayla gönderilir.
 - **Kâr baştan belli:** Ürünü eklerken her pazaryeri için komisyon, platform bedeli, kargo (barem/desi), stopaj ve **net kâr** canlı hesaplanır.
 - **Ortak stok havuzu:** Bir pazaryerinde satış olunca stok tek sayaçtan düşer ve yeni değer diğer tüm pazaryerlerine otomatik gönderilir.
-- **Gerçek veriyle çalışır:** Demo yok. İlk açılışta yönetici hesabı oluşturulur, ardından pazaryeri API bilgileri adım adım istenir.
+- **Çok mağazalı:** Her satıcı kendi e-postasıyla kayıt olur; ürünleri, siparişleri ve pazaryeri anahtarları yalnızca kendisine görünür.
+- **Sipariş durumu çift yönlü:** Panelde "Hazırlanıyor / Kargoda / İptal" yaptığınızda durum siparişin geldiği pazaryerine de bildirilir.
+- **Gerçek veriyle çalışır:** Demo yok. Kayıttan sonra satış yaptığınız pazaryerlerini seçersiniz; her biri için yalnızca gereken anahtar istenir.
 
 Next.js 15 (App Router) + Tailwind CSS + Lucide + Recharts + Supabase (PostgreSQL, Storage, Realtime).
 
@@ -13,21 +15,27 @@ Next.js 15 (App Router) + Tailwind CSS + Lucide + Recharts + Supabase (PostgreSQ
 
 ## 1. İlk Açılışta Ne Olur?
 
-1. **Kurulum (`/setup`)** — Şirket adı, adınız, e-posta ve şifre (en az 8 karakter). Yalnızca ilk kullanıcı bu ekranı görür; sonra ekran kapanır.
-2. **Pazaryeri bağlantıları (`/onboarding`)** — 8 pazaryeri sırayla gelir. Her birinde, bilgilerin satıcı panelinin **hangi menüsünden** alınacağı adım adım yazar.
-   API Key / Secret / Satıcı ID'yi yapıştırın → **Bağlantıyı Test Et** → **Kaydet ve bağla**. Satmadığınız pazaryerini **Atla** ile geçin; sonra *API Bağlantıları* ekranından ekleyebilirsiniz.
+1. **Kayıt (`/signup`)** — Mağaza adı, adınız, e-posta ve şifre. Herkes kendi mağazasını açar; mağazaların verileri birbirinden tamamen ayrıdır.
+2. **Pazaryeri seçimi ve bağlantı (`/onboarding`)** — Önce satış yaptığınız pazaryerlerini işaretlersiniz; yalnızca onlar sorulur.
+   Her pazaryerinde yalnızca gerekli alanlar görünür (ör. Çiçeksepeti ve Koçtaş için tek anahtar, N11 ve Pazarama için iki anahtar); isteğe bağlı ayarlar "Gelişmiş" altında kapalıdır.
+   Bilginin satıcı panelinin **hangi menüsünden** alınacağı adım adım yazar → **Bağlantıyı Test Et** → **Kaydet ve bağla**. "Bunu sonra yapacağım" ile geçebilirsiniz.
    Etsy için anahtarları kaydettikten sonra **Etsy ile bağlan** butonuyla Etsy hesabınızda izin verirsiniz (OAuth).
-3. **Varsayılanlar** — Her bağlı pazaryeri için kargo firması, kargoya teslim süresi, Bugün Kargoda / Hızlı Teslimat ve kategori komisyon oranınız. Yeni ürünlerde otomatik dolar.
-4. **İlk ürün** — Doğrudan *Yeni Ürün Ekle* sihirbazı açılır.
+3. **İlk ürün** — Doğrudan *Yeni Ürün Ekle* sihirbazı açılır. Kargo/termin/komisyon varsayılanları hazır gelir; *API Bağlantıları* sayfasından değiştirilebilir.
 
-Sonraki girişler `/login` üzerinden olur. Oturum 14 gün geçerlidir; 10 hatalı denemeden sonra giriş 15 dakika kilitlenir.
+Sonraki girişler `/login` üzerinden olur. Oturum 14 gün geçerlidir.
+
+**Şifre ve güvenlik**
+- Şifre en az 10 karakter, harf ve rakam içermeli; çok bilinen şifreler ve e-posta adını içeren şifreler kabul edilmez. Şifreler scrypt (N=65536) ile saklanır; eski şifreler ilk girişte otomatik güçlendirilir.
+- Aynı e-postaya 15 dakikada 5 hatalı giriş denemesinde hesap 15 dakika kilitlenir (sayaç veritabanında, tüm sunucularda ortak).
+- **Hesabım (`/account`)**: ad ve mağaza adı değiştirme, şifre değiştirme (diğer cihazlardaki oturumlar kapanır), tüm cihazlardan çıkış.
+- **Şifremi unuttum (`/forgot` → e-posta → `/reset`)**: 1 saat geçerli, tek kullanımlık bağlantı. Gmail ayarı gerekir (aşağıya bakın).
 
 ## 2. Yeni Ürün Ekleme Sihirbazı
 
 | Adım | Ne istenir | Notlar |
 |---|---|---|
 | 1. Ürün bilgileri | Ad, marka, iç kategori, barkod, SKU, açıklama, KDV, desi | Barkod/SKU yoksa **Oluştur** ile üretilir. Açıklama tüm pazaryerlerine aynen gider. |
-| 2. Fotoğraflar | Dosya (URL değil) — sürükle-bırak veya seç | En fazla 8 (Trendyol sınırı). Sürükleyerek veya oklarla sıralanır; **1. fotoğraf kapak**. 2400 px üstü tarayıcıda küçültülür, 600 px altı için uyarı verilir. |
+| 2. Fotoğraflar | Dosya (URL değil) — **Galeriden seç**, **Kamerayla çek** veya sürükle-bırak | En fazla 8 (Trendyol sınırı). Sürükleyerek veya oklarla sıralanır; **1. fotoğraf kapak**. 2400 px üstü tarayıcıda küçültülür, 600 px altı için uyarı verilir. |
 | 3. Fiyat & stok | Maliyet, maliyet KDV'si, ambalaj, satış fiyatı, liste fiyatı, başlangıç stoğu, kritik eşik | Bu adımda tüm pazaryerleri için net kâr tablosu görünür. |
 | 4. Pazaryerleri | Yalnızca **bağlı** pazaryerleri: yayınla/yayınlama, pazaryerine özel fiyat, komisyon, kargo firması, termin, Bugün Kargoda | Trendyol'da kategori ve marka **canlı aranır**, kategorinin zorunlu özellikleri form olarak gelir. Her değişiklikte net kâr anında yeniden hesaplanır. |
 | 5. Kontrol & yayınla | Özet, fotoğraf sırası, kâr tablosu | Zarar eden pazaryeri varsa uyarır. |
@@ -72,12 +80,12 @@ nuance-art/
 ├── src/lib/marketplaces/adapters/      # trendyol, hepsiburada, n11, ciceksepeti, pazarama, idefix, koctas, etsy
 ├── src/lib/fees/                       # maliyet motoru, fiyat önerici, ilan kâr hesabı
 └── src/app/
-    ├── setup/ login/ onboarding/       # ilk kurulum ve giriş
+    ├── signup/ login/ forgot/ reset/ account/ onboarding/   # kayıt, giriş, şifre, hesap, ilk kurulum
     ├── products/new/                   # yeni ürün sihirbazı
     ├── products/[id]/                  # ürün detayı
-    ├── products/ stock/ orders/ profit/ pricing/ rules/ settings/
+    ├── products/ stock/ orders/ profit/ pricing/ rules/ settings/ ads/
     └── api/
-        ├── auth/{status,setup,login,logout}  auth/etsy/{start,callback}
+        ├── auth/{status,signup,login,logout,forgot,reset}  auth/etsy/{start,callback}  account/{,password,logout-all}  ads/
         ├── onboarding/                        uploads/  (fotoğraf yükleme)
         ├── products/  products/[id]  products/[id]/{publish,stock,sync,listings}
         ├── marketplaces/[mp]/{categories,brands,attributes}
@@ -113,7 +121,7 @@ nuance-art/
    npm install
    npm run dev
    ```
-   http://localhost:3000 → otomatik olarak **/setup** açılır.
+   http://localhost:3000 → giriş ekranı açılır; **Ücretsiz hesap oluşturun** ile kayıt olun.
 
 ## 5. Canlıya Alma (Vercel)
 
@@ -123,6 +131,10 @@ nuance-art/
    Panel kapalıyken de çalışması için ücretsiz **cron-job.org** hesabı açıp 5 dakikada bir şu adresi çağıran bir görev ekleyin:
    `https://ALANADINIZ/api/cron/sync?token=CRON_SECRET`. (`vercel.json`'daki günlük cron, Vercel Hobby planının sınırına uygundur.)
 4. **Etsy:** developers.etsy.com'daki uygulamanızın *Callback URL* alanına `https://ALANADINIZ/api/auth/etsy/callback` ekleyin.
+5. **Şifremi unuttum e-postası (Gmail):** Google Hesabı → Güvenlik → *2 Adımlı Doğrulama*'yı açın → *Uygulama şifreleri* → yeni şifre oluşturun (16 harf).
+   Vercel'e `GMAIL_USER` (Gmail adresi) ve `GMAIL_APP_PASSWORD` (16 harflik şifre) ekleyip yeniden yayınlayın. İsteğe bağlı `APP_URL` = sitenin adresi (e-postadaki bağlantı için).
+6. **Veritabanı güncellemesi:** Bu sürüm çok mağazalı yapıya geçer. Supabase → SQL Editor'de `supabase/schema.sql`'in tamamını bir kez daha çalıştırın; mevcut ürün, sipariş ve hesaplar otomatik olarak ilk kullanıcının mağazasına taşınır.
+7. **Webhook adresi** artık mağaza kimliği içerir: `/api/webhooks/trendyol?store=MAĞAZA_ID&token=WEBHOOK_SECRET`.
 5. **Webhook (isteğe bağlı):** `https://ALANADINIZ/api/webhooks/trendyol?token=WEBHOOK_SECRET` (diğerleri için pazaryeri adını değiştirin). Webhook yalnızca tetikleyicidir; sipariş API'den çekilir.
 
 ### Güvenlik

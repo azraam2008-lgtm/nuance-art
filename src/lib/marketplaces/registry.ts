@@ -1,6 +1,7 @@
 import 'server-only';
 import type { MarketplaceName } from './meta';
 import type { MarketplaceAdapter, MarketplaceCredentials } from './types';
+import { GUIDES, hasRequiredKeys } from './guides';
 import { TrendyolAdapter } from './adapters/trendyol';
 import { HepsiburadaAdapter } from './adapters/hepsiburada';
 import { N11Adapter } from './adapters/n11';
@@ -41,7 +42,10 @@ const FACTORIES: Record<MarketplaceName, (c: MarketplaceCredentials, o: AdapterO
  */
 export function createAdapter(name: MarketplaceName, creds: MarketplaceCredentials | null, isActive: boolean, opts: AdapterOptions = {}): MarketplaceAdapter | null {
   const demo = process.env.DEMO_MODE === 'true';
-  const connected = isActive && !!creds && !!creds.apiKey && (!!creds.sellerId || name === 'etsy');
+  const connected = isActive && !!creds && hasRequiredKeys(name, creds);
   if (!connected) return demo ? new DemoAdapter(name) : null;
-  return FACTORIES[name](creds!, opts);
+  // Boş bırakılan gelişmiş ayarlar için varsayılan değerler (ör. Koçtaş panel adresi)
+  const extra = { ...creds!.extra };
+  for (const f of GUIDES[name].extra) if (f.default && (extra[f.key] === undefined || extra[f.key] === '')) extra[f.key] = f.default;
+  return FACTORIES[name]({ ...creds!, extra }, opts);
 }

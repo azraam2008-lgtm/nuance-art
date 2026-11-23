@@ -86,6 +86,8 @@ export interface AdapterResult {
   externalId?: string | null;
   /** batchRequestId / trackingId / taskId — onay durumunu sonradan sorgulamak için */
   ref?: string | null;
+  /** Pazaryeri bu işlemi API ile desteklemiyor (hata değil; bilgi amaçlı) */
+  unsupported?: boolean;
 }
 
 /**
@@ -108,6 +110,19 @@ export interface MarketplaceAdapter {
   categoryAttributes?(categoryId: number): Promise<AttributeDef[]>;
   /** İsteğe bağlı: yayındaki ürünün başlık/açıklama/görsellerini günceller */
   updateProduct?(product: ProductPayload, externalId: string | null): Promise<AdapterResult>;
+  /** Paneldeki sipariş durumu değişikliğini pazaryerine bildirir (Hazırlanıyor, Kargoda, İptal…) */
+  updateOrderStatus?(u: OrderStatusUpdate): Promise<AdapterResult>;
+}
+
+/** Pazaryerine bildirilecek sipariş durumu. raw: pazaryerinden gelen orijinal sipariş/paket verisi */
+export interface OrderStatusUpdate {
+  externalOrderId: string;
+  status: OrderStatus;
+  raw: unknown;
+  items: Array<{ sku: string; quantity: number }>;
+  trackingNumber?: string | null;
+  carrier?: string | null;
+  invoiceNumber?: string | null;
 }
 
 export interface CategoryOption { id: number | string; name: string; path: string }

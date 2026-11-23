@@ -12,7 +12,7 @@ export const POST = handle(async () => {
   if (live.length) {
     throw new HttpError(409, 'Canlı modda pazaryeri varken demo verisi yüklenemez (tüm ürün ve siparişler silinir). Önce canlı modu kapatın.');
   }
-  const res = must(await db().rpc('seed_demo_data')) as { orders: number; products: number };
+  const res = must(await db().rpc('seed_demo_data', {})) as { orders: number; products: number };
   const computed = await recomputeAll();
   return { ...res, computed };
 });

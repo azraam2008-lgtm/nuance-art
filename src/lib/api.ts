@@ -1,12 +1,27 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
+import { activeUser } from '@/lib/auth/server';
+import { withStore } from '@/lib/tenant';
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-/** Route handler'ları saran ortak hata yönetimi */
+/**
+ * Route handler'ları saran ortak hata yönetimi + oturum/mağaza bağlamı.
+ * Oturum geçersizse 401 döner; geçerliyse fonksiyon kullanıcının mağazası bağlamında çalışır
+ * (db() yalnızca o mağazanın verisini görür).
+ */
 export function handle<A extends unknown[]>(fn: (...args: A) => Promise<unknown>) {
+  return handlePublic(async (...args: A) => {
+    const user = await activeUser();
+    if (!user) throw new HttpError(401, 'Oturumunuz sona erdi. Lütfen tekrar giriş yapın.');
+    return withStore(user.storeId, () => fn(...args), user.id);
+  });
+}
+
+/** Oturum gerektirmeyen uçlar (cron, webhook, giriş): mağaza bağlamını kendileri kurar */
+export function handlePublic<A extends unknown[]>(fn: (...args: A) => Promise<unknown>) {
   return async (...args: A) => {
     try {
       const data = await fn(...args);

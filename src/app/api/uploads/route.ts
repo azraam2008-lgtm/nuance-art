@@ -26,7 +26,7 @@ export const POST = handle(async (req: Request) => {
     const ext = TYPES[f.type];
     if (!ext) throw new HttpError(400, `${f.name}: yalnızca JPG, PNG veya WEBP yüklenebilir.`);
     if (f.size > MAX) throw new HttpError(400, `${f.name}: dosya 10 MB'tan büyük.`);
-    const path = `products/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${randomUUID()}.${ext}`;
+    const path = `${db().storeId}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${randomUUID()}.${ext}`;
     const { error } = await db().storage.from(BUCKET).upload(path, Buffer.from(await f.arrayBuffer()), { contentType: f.type, upsert: false, cacheControl: '31536000' });
     if (error) throw new Error(`Fotoğraf yüklenemedi (${f.name}): ${error.message}. Supabase'de "product-images" kovasının olduğundan emin olun (schema.sql).`);
     out.push({ url: db().storage.from(BUCKET).getPublicUrl(path).data.publicUrl, path, name: f.name, size: f.size });

@@ -89,6 +89,7 @@ export default function NewProductPage() {
     }).catch((e: Error) => toast(e.message, 'err'));
   }, [toast]);
 
+  const [manualIds, setManualIds] = useState<Record<string, boolean>>({});
   const setMp = (mp: string, patch: Partial<MpState>) => setMps((x) => ({ ...x, [mp]: { ...x[mp], ...patch } }));
   const selected = Object.entries(mps).filter(([, s]) => s.publish).map(([k]) => k as MarketplaceName);
   const basePrice = n(f.price);
@@ -132,8 +133,9 @@ export default function NewProductPage() {
         const missing = s.attrDefs.filter((d) => d.required && !s.attrs[d.id]?.valueId && !s.attrs[d.id]?.custom?.trim());
         if (missing.length) p[3].push(`${label}: zorunlu özellikler eksik — ${missing.map((d) => d.name).join(', ')}.`);
       } else if (['hepsiburada', 'n11', 'ciceksepeti', 'pazarama', 'idefix'].includes(mp) && !s.categoryId.trim()) {
-        p[3].push(`${label}: kategori ID girin.`);
+        p[3].push(`${label}: kategori seçin.`);
       }
+      if ((mp === 'pazarama' || mp === 'idefix') && !s.brandId.trim()) p[3].push(`${label}: marka seçin.`);
       if (s.price && !(n(s.price) > 0)) p[3].push(`${label}: özel fiyat geçersiz.`);
     }
     return p;
@@ -150,8 +152,13 @@ export default function NewProductPage() {
         listingSettings[mp] = { carrier: s.carrier, handlingDays: s.handlingDays, sameDayTag: s.sameDayTag, fastTag: s.fastTag, commissionRate: s.commissionRate, priceOverride: s.price || null };
         if (mp === 'trendyol') {
           marketplaceAttributes[mp] = { categoryId: s.category?.id, categoryName: s.category?.name, brandId: s.brand?.id, brandName: s.brand?.name, attributes: attributesPayload(s.attrs), dimensionalWeight: n(f.desi) || 1 };
+        } else if (mp === 'etsy') {
+          marketplaceAttributes[mp] = s.categoryId ? { taxonomyId: Number(s.categoryId), categoryName: s.category?.name } : {};
         } else {
-          marketplaceAttributes[mp] = { ...(s.categoryId ? { categoryId: s.categoryId } : {}), ...(s.brandId ? { brandId: s.brandId } : {}) };
+          marketplaceAttributes[mp] = {
+            ...(s.categoryId ? { categoryId: s.categoryId, categoryName: s.category?.name } : {}),
+            ...(s.brandId ? { brandId: s.brandId, brandName: s.brand?.name } : {}),
+          };
         }
       }
       const r = await api<{ product: { id: string }; results: Record<string, { ok: boolean; message: string }> }>('/api/products', {
@@ -324,20 +331,41 @@ export default function NewProductPage() {
                           <div className="md:col-span-2"><SearchPicker marketplace={mp} kind="brands" label="Trendyol markası *" value={s.brand} onChange={(v) => setMp(mp, { brand: v })} placeholder={f.brand || 'Marka adı'} /></div>
                           <div className="md:col-span-4"><AttributesForm marketplace={mp} categoryId={s.category?.id ?? null} value={s.attrs} onChange={(v) => setMp(mp, { attrs: v })} onLoaded={(d) => setMp(mp, { attrDefs: d })} /></div>
                         </>
-                      ) : mp === 'etsy' ? (
-                        <p className="md:col-span-4 text-xs text-slate-500">Etsy: kategori (taxonomy) ve kargo profili API Bağlantıları&apos;ndaki varsayılanlardan alınır. Fiyat, mağaza para birimine güncel TCMB kuruyla çevrilir.</p>
                       ) : mp === 'koctas' ? (
                         <p className="md:col-span-4 text-xs text-slate-500">Koçtaş: ürün, Mirakl kataloğunda barkod ile eşleştirilir. Eşleşmezse Koçtaş paneli üzerinden ürün kartı açılması gerekir.</p>
                       ) : (
                         <>
-                          <Field label={`${MARKETPLACE_META[mp].label} kategori ID *`} hint="Pazaryeri panelindeki kategori numarası.">
-                            <input className={inputClass} value={s.categoryId} onChange={(e) => setMp(mp, { categoryId: e.target.value.trim() })} />
-                          </Field>
+                          <div className="md:col-span-2">
+                            {manualIds[mp] ? (
+                              <Field label={`${MARKETPLACE_META[mp].label} kategori numarası${mp === 'etsy' ? '' : ' *'}`} hint="Pazaryeri panelindeki kategori numarası.">
+                                <input className={inputClass} value={s.categoryId} onChange={(e) => setMp(mp, { categoryId: e.target.value.trim(), category: null })} />
+                              </Field>
+                            ) : (
+                              <SearchPicker marketplace={mp} kind="categories" label={`${MARKETPLACE_META[mp].label} kategorisi${mp === 'etsy' ? '' : ' *'}`}
+                                value={s.category ?? (s.categoryId ? { id: s.categoryId, name: `Kategori #${s.categoryId}` } : null)}
+                                onChange={(v) => setMp(mp, { category: v, categoryId: v ? String(v.id) : '' })} placeholder="Örn. toka, kurdele, mum…" />
+                            )}
+                            <button type="button" className="text-[11px] text-indigo-600 mt-1" onClick={() => setManualIds((x) => ({ ...x, [mp]: !x[mp] }))}>
+                              {manualIds[mp] ? 'Listeden arayarak seç' : 'Kategori numarasını elle yaz'}
+                            </button>
+                          </div>
                           {(mp === 'pazarama' || mp === 'idefix') && (
-                            <Field label="Marka ID">
-                              <input className={inputClass} value={s.brandId} onChange={(e) => setMp(mp, { brandId: e.target.value.trim() })} />
-                            </Field>
+                            <div className="md:col-span-2">
+                              {manualIds[`${mp}:brand`] ? (
+                                <Field label={`${MARKETPLACE_META[mp].label} marka numarası *`}>
+                                  <input className={inputClass} value={s.brandId} onChange={(e) => setMp(mp, { brandId: e.target.value.trim(), brand: null })} />
+                                </Field>
+                              ) : (
+                                <SearchPicker marketplace={mp} kind="brands" label={`${MARKETPLACE_META[mp].label} markası *`}
+                                  value={s.brand ?? (s.brandId ? { id: s.brandId, name: `Marka #${s.brandId}` } : null)}
+                                  onChange={(v) => setMp(mp, { brand: v, brandId: v ? String(v.id) : '' })} placeholder={f.brand || 'Marka adı'} />
+                              )}
+                              <button type="button" className="text-[11px] text-indigo-600 mt-1" onClick={() => setManualIds((x) => ({ ...x, [`${mp}:brand`]: !x[`${mp}:brand`] }))}>
+                                {manualIds[`${mp}:brand`] ? 'Listeden arayarak seç' : 'Marka numarasını elle yaz'}
+                              </button>
+                            </div>
                           )}
+                          {mp === 'etsy' && <p className="md:col-span-4 text-xs text-slate-500">Etsy: kategori seçmezseniz API Bağlantıları&apos;ndaki varsayılan kullanılır. Fiyat, mağaza para birimine güncel TCMB kuruyla çevrilir.</p>}
                         </>
                       )}
                     </div>

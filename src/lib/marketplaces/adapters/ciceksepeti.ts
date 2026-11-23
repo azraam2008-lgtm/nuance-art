@@ -1,9 +1,8 @@
 import type { OrderStatus } from '../meta';
 import type {
-  AdapterResult, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder,
-  ProductPayload, RemoteProduct, StockUpdate,
+  AdapterResult, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { chunk, dateWindows, errorMessage, num, request, str } from '../http';
+import { cachedCategories, chunk, dateWindows, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
 
 /**
  * Çiçeksepeti Marketplace API adaptörü.
@@ -128,6 +127,66 @@ export class CiceksepetiAdapter implements MarketplaceAdapter {
       description: str(p.description), category: str(p.categoryName), brand: '', vatRate: 20, price: num(p.salesPrice),
       listPrice: num(p.listPrice), costPrice: 0, stock: num(p.stockQuantity), images: Array.isArray(p.images) ? (p.images as string[]) : [], attributes: {},
     }));
+  }
+
+  /**
+   * Sipariş durumu → Çiçeksepeti. Hazırlanıyor → kalemler "kargoya hazır" yapılır (Çiçeksepeti anlaşmalı kargo).
+   * Kendi kargonuzla gönderimde takip numarası "Kargoda" adımında bildirilir.
+   */
+  async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
+    const ids = recs(u.raw).map((l) => num(l.orderItemId ?? l.orderProductId)).filter(Boolean);
+    if (!ids.length && u.status !== 'new') return { ok: false, message: 'Çiçeksepeti sipariş kalemleri bulunamadı (sipariş yeniden senkronlanmalı).' };
+    try {
+      switch (u.status) {
+        case 'preparing':
+          await request(`${this.base}/Order/readyforcargowithcsintegration`, {
+            method: 'PUT', headers: this.headers, json: { orderItemsGroup: [{ orderItemIds: ids }] },
+          });
+          return { ok: true, message: 'Çiçeksepeti\'nde sipariş "kargoya hazır" yapıldı.' };
+        case 'shipped':
+          if (!u.trackingNumber) return notSupported('Çiçeksepeti anlaşmalı kargoda "Kargoda" bilgisi otomatik gelir. Kendi kargonuzla gönderiyorsanız takip numarası girin.');
+          await request(`${this.base}/Order/readyforcargowithtrackingnumber`, {
+            method: 'PUT', headers: this.headers,
+            json: { orderItemsGroup: [{ orderItemIds: ids, trackingNumber: u.trackingNumber, cargoCompany: u.carrier ?? '' }] },
+          });
+          return { ok: true, message: `Çiçeksepeti\'ne takip numarası bildirildi (${u.trackingNumber}).` };
+        case 'cancelled':
+          return notSupported('Çiçeksepeti\'nde satıcı iptali Satıcı Paneli\'nden yapılır. Stok panelde iade edildi.');
+        case 'delivered':
+          return notSupported('Çiçeksepeti\'nde teslimat bilgisi kargo firmasından otomatik gelir.');
+        default:
+          return notSupported('Çiçeksepeti\'nde sipariş "Yeni" durumuna geri alınamaz.');
+      }
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
+  }
+
+  /** Çiçeksepeti kategori araması */
+  async searchCategories(q: string): Promise<CategoryOption[]> {
+    const all = await cachedCategories('ciceksepeti', async () => {
+      const res = await request<unknown>(`${this.base}/Categories`, { headers: this.headers });
+      return flattenCategories(Array.isArray(res) ? res : rec(res).categories);
+    });
+    return searchIn(all, q);
+  }
+
+  /** İçerik güncellemesi (ad, açıklama, görseller) */
+  async updateProduct(p: ProductPayload): Promise<AdapterResult> {
+    try {
+      const res = await request<{ batchId?: string }>(`${this.base}/Products`, {
+        method: 'PUT', headers: this.headers,
+        json: { products: [{
+          productName: p.title, mainProductCode: p.sku, stockCode: p.sku, description: p.description || p.title,
+          deliveryMessageType: num(p.attributes.deliveryMessageType ?? this.c.extra.deliveryMessageType, 5),
+          deliveryType: num(p.attributes.deliveryType ?? this.c.extra.deliveryType, 2),
+          images: p.images.slice(0, 5), Attributes: Array.isArray(p.attributes.attributes) ? p.attributes.attributes : [],
+        }] },
+      });
+      return { ok: true, status: 'pending', ref: res?.batchId ?? null, message: `İçerik güncellemesi Çiçeksepeti'ne gönderildi (batch: ${res?.batchId ?? '-'}).` };
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
   }
 }
 

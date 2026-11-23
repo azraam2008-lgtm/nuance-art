@@ -6,7 +6,7 @@ import { cx, inputClass } from './ui';
 
 interface Option { id: number | string; name: string; path?: string }
 
-/** Pazaryeri kataloğunda arama yapan seçim kutusu (Trendyol kategori / marka) */
+/** Pazaryeri kataloğunda arama yapan seçim kutusu (kategori / marka) */
 export function SearchPicker({ marketplace, kind, value, label, onChange, placeholder }: {
   marketplace: string; kind: 'categories' | 'brands'; value: { id: number | string; name: string } | null; label?: string;
   onChange: (v: { id: number | string; name: string } | null) => void; placeholder?: string;
@@ -16,6 +16,7 @@ export function SearchPicker({ marketplace, kind, value, label, onChange, placeh
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [unsupported, setUnsupported] = useState(false);
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -25,7 +26,7 @@ export function SearchPicker({ marketplace, kind, value, label, onChange, placeh
       setBusy(true); setErr(null);
       try {
         const r = await api<{ items: Option[]; supported: boolean }>(`/api/marketplaces/${marketplace}/${kind}?q=${encodeURIComponent(q)}`);
-        setItems(r.items); setOpen(true);
+        setItems(r.items); setUnsupported(!r.supported); setOpen(true);
       } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
     }, 350);
   }, [q, marketplace, kind]);
@@ -50,7 +51,7 @@ export function SearchPicker({ marketplace, kind, value, label, onChange, placeh
         <input className={`${inputClass} pl-9`} value={q} placeholder={placeholder ?? 'En az 2 harf yazın…'} onChange={(e) => setQ(e.target.value)} onFocus={() => items.length && setOpen(true)} />
         {busy && <Loader2 className="w-4 h-4 absolute right-3 top-2.5 animate-spin text-slate-400" />}
       </div>
-      {err && <div className="text-[11px] text-rose-600 mt-1">{err}</div>}
+      {err && <div className="text-[11px] text-rose-600 mt-1">Liste alınamadı: {err}</div>}
       {open && items.length > 0 && (
         <ul className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg text-sm">
           {items.map((it) => (
@@ -62,7 +63,7 @@ export function SearchPicker({ marketplace, kind, value, label, onChange, placeh
           ))}
         </ul>
       )}
-      {open && !busy && q.length >= 2 && items.length === 0 && !err && <div className="text-[11px] text-slate-500 mt-1">Sonuç yok.</div>}
+      {open && !busy && q.length >= 2 && items.length === 0 && !err && <div className="text-[11px] text-slate-500 mt-1">{unsupported ? 'Bu pazaryerinde arama yok; numarayı elle yazın.' : 'Sonuç yok. Başka bir kelime deneyin.'}</div>}
     </div>
   );
 }

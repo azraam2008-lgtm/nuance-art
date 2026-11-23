@@ -12,15 +12,32 @@ export interface ExtraField {
   required?: boolean;
   type?: 'text' | 'number';
   help?: string;
+  /** Boş bırakılırsa kullanılacak değer */
+  default?: string;
 }
+
+export type Need = 'required' | 'optional' | 'none' | 'auto';
 
 export interface MarketplaceGuide {
   panelUrl: string;
   panelName: string;
   steps: string[];
+  /** İsteğe bağlı / gelişmiş ayarlar ("Gelişmiş" bölümünde kapalı gösterilir) */
   extra: ExtraField[];
+  /** Hangi bilgiler gerçekten gerekli? (gerekmeyen alan formda hiç gösterilmez) */
+  needs: { secret: Need; seller: Need };
   secretRequired: boolean;
   note?: string;
+}
+
+/** Pazaryeri bağlantısı için gereken bilgilerin tamamı girilmiş mi? (sunucu ve tarayıcı ortak kullanır) */
+export function hasRequiredKeys(mp: MarketplaceName, c: { apiKey?: string | null; apiSecret?: string | null; hasSecret?: boolean; sellerId?: string | null }): boolean {
+  const g = GUIDES[mp];
+  if (!c.apiKey?.trim()) return false;
+  if (g.needs.seller === 'required' && !c.sellerId?.trim()) return false;
+  if (g.needs.seller === 'auto' && !c.sellerId?.trim()) return false;
+  if (g.needs.secret === 'required' && !(c.apiSecret?.trim() || c.hasSecret)) return false;
+  return true;
 }
 
 export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = {
@@ -31,24 +48,25 @@ export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = {
       'Trendyol Satıcı Paneli\'ne giriş yapın.',
       'Sağ üstte mağaza adınıza tıklayın → "Hesap Bilgilerim".',
       '"Entegrasyon Bilgileri" sekmesini açın.',
-      'Satıcı ID (Cari ID), API Key ve API Secret değerlerini kopyalayıp aşağıya yapıştırın.',
+      'Satıcı ID, API Key ve API Secret değerlerini kopyalayıp aşağıya yapıştırın.',
     ],
     extra: [
-      { key: 'cargoCompanyId', label: 'Kargo firması ID (isteğe bağlı)', type: 'number', help: 'Ürün yüklerken kullanılacak anlaşmalı kargo; boşsa Trendyol varsayılanı.' },
+      { key: 'cargoCompanyId', label: 'Kargo firması ID', type: 'number', help: 'Boşsa Trendyol\'daki varsayılan kargonuz kullanılır.' },
     ],
+    needs: { secret: 'required', seller: 'required' },
     secretRequired: true,
-    note: 'Kategori ve marka ürün eklerken Trendyol listesinden aranarak seçilir.',
+    note: 'Kategori ve marka ürün eklerken listeden aranarak seçilir.',
   },
   hepsiburada: {
     panelUrl: 'https://merchant.hepsiburada.com',
-    panelName: 'Hepsiburada Merchant Paneli',
+    panelName: 'Hepsiburada Satıcı Paneli',
     steps: [
-      'Hepsiburada Merchant Paneli\'ne giriş yapın.',
+      'Hepsiburada Satıcı Paneli\'ne giriş yapın.',
       'Hesabım → "Entegrasyon" (Entegratör Bilgileri) sayfasına gidin.',
-      'Merchant ID ve servis anahtarınızı (secret key) kopyalayın.',
-      'Entegratör kullanıcı adınızı "API Key" alanına yazın (istek başlığında User-Agent olarak gönderilir).',
+      'Merchant ID, kullanıcı adı ve servis anahtarını (secret key) kopyalayıp aşağıya yapıştırın.',
     ],
-    extra: [{ key: 'defaultCategoryId', label: 'Varsayılan kategori ID', type: 'number', help: 'Ürün eklerken ürün bazında değiştirilebilir.' }],
+    extra: [{ key: 'defaultCategoryId', label: 'Varsayılan kategori numarası', type: 'number', help: 'Ürün eklerken kategori listeden aranarak da seçilebilir.' }],
+    needs: { secret: 'required', seller: 'required' },
     secretRequired: true,
   },
   n11: {
@@ -56,14 +74,14 @@ export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = {
     panelName: 'n11 Satıcı Ofisi',
     steps: [
       'n11 Satıcı Ofisi\'ne giriş yapın.',
-      'Hesabım → "API Hesapları" sayfasını açın; yoksa "Yeni API Hesabı Oluştur".',
-      'App Key ve App Secret değerlerini kopyalayın.',
-      'Mağaza/Satıcı ID\'nizi (Hesap bilgileri sayfasında) girin.',
+      'Hesabım → "API Hesapları" sayfasını açın; hesap yoksa "Yeni API Hesabı Oluştur"a basın.',
+      'App Key ve App Secret değerlerini kopyalayıp aşağıya yapıştırın.',
     ],
     extra: [
-      { key: 'defaultCategoryId', label: 'Varsayılan kategori ID', type: 'number' },
-      { key: 'shipmentTemplate', label: 'Teslimat şablonu adı', placeholder: 'Standart', help: 'n11 panelinde tanımlı kargo şablonunuzun adı (zorunlu).' },
+      { key: 'shipmentTemplate', label: 'Teslimat şablonu adı', placeholder: 'Standart', help: 'n11 panelindeki kargo şablonunuzun adı. Boşsa "Standart" kullanılır.', default: 'Standart' },
+      { key: 'defaultCategoryId', label: 'Varsayılan kategori numarası', type: 'number' },
     ],
+    needs: { secret: 'required', seller: 'none' },
     secretRequired: true,
   },
   ciceksepeti: {
@@ -71,10 +89,11 @@ export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = {
     panelName: 'Çiçeksepeti Satıcı Paneli',
     steps: [
       'Çiçeksepeti Satıcı Paneli\'ne giriş yapın.',
-      'Hesap Ayarları → "Entegrasyon Bilgileri" bölümünü açın.',
-      'API Key değerini kopyalayın; Satıcı ID\'nizi girin.',
+      'Hesap Ayarları → "Entegrasyon Bilgileri" (API Erişim) bölümünü açın.',
+      'API Key değerini kopyalayıp aşağıya yapıştırın. Başka bilgi gerekmez.',
     ],
-    extra: [{ key: 'defaultCategoryId', label: 'Varsayılan kategori ID', type: 'number' }],
+    extra: [{ key: 'defaultCategoryId', label: 'Varsayılan kategori numarası', type: 'number' }],
+    needs: { secret: 'none', seller: 'none' },
     secretRequired: false,
   },
   pazarama: {
@@ -83,12 +102,13 @@ export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = {
     steps: [
       'Pazarama İş Ortağım paneline giriş yapın.',
       'Hesap → "Entegrasyon Bilgileri" sayfasından API erişimi oluşturun.',
-      'Client ID (API Key) ve Client Secret değerlerini kopyalayın; Satıcı (Merchant) ID\'nizi girin.',
+      'API Key (Client ID) ve API Secret (Client Secret) değerlerini kopyalayıp aşağıya yapıştırın.',
     ],
     extra: [
-      { key: 'defaultCategoryId', label: 'Varsayılan kategori ID' },
-      { key: 'defaultBrandId', label: 'Varsayılan marka ID' },
+      { key: 'defaultCategoryId', label: 'Varsayılan kategori numarası' },
+      { key: 'defaultBrandId', label: 'Varsayılan marka numarası' },
     ],
+    needs: { secret: 'required', seller: 'none' },
     secretRequired: true,
   },
   idefix: {
@@ -97,24 +117,27 @@ export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = {
     steps: [
       'idefix Satıcı Paneli\'ne giriş yapın.',
       'Hesap Ayarları → "Entegrasyon / API Bilgileri" sayfasını açın.',
-      'API Key, API Secret ve Vendor (Satıcı) ID değerlerini kopyalayın.',
+      'API Key, API Secret ve Satıcı (Vendor) ID değerlerini kopyalayıp aşağıya yapıştırın.',
     ],
     extra: [
-      { key: 'defaultCategoryId', label: 'Varsayılan kategori ID', type: 'number' },
-      { key: 'defaultBrandId', label: 'Varsayılan marka ID', type: 'number' },
+      { key: 'defaultCategoryId', label: 'Varsayılan kategori numarası', type: 'number' },
+      { key: 'defaultBrandId', label: 'Varsayılan marka numarası', type: 'number' },
     ],
+    needs: { secret: 'required', seller: 'required' },
     secretRequired: true,
   },
   koctas: {
-    panelUrl: 'https://www.koctas.com.tr/koctasta-satici-ol',
-    panelName: 'Koçtaş Satış Ortağım (Mirakl)',
+    panelUrl: 'https://koctas-prod.mirakl.net',
+    panelName: 'Koçtaş Satış Ortağım',
     steps: [
-      'Koçtaş Satış Ortağım (Mirakl) paneline giriş yapın.',
-      'Sağ üstte kullanıcı adınız → "API Anahtarı" → anahtar oluşturup kopyalayın.',
-      'Tarayıcı adres çubuğundaki alan adını (ör. https://koctas-prod.mirakl.net) "Mirakl adresi" alanına yazın.',
-      'Mağaza (Shop) ID\'nizi Ayarlar → Mağaza bilgileri\'nden alın.',
+      'Koçtaş Satış Ortağım paneline giriş yapın.',
+      'Sağ üstte kullanıcı adınıza tıklayın → "API Anahtarı" → anahtar oluşturup kopyalayın.',
+      'Anahtarı aşağıya yapıştırın. Başka bilgi gerekmez.',
     ],
-    extra: [{ key: 'baseUrl', label: 'Mirakl adresi', placeholder: 'https://koctas-prod.mirakl.net', required: true }],
+    extra: [
+      { key: 'baseUrl', label: 'Panel adresi', placeholder: 'https://koctas-prod.mirakl.net', default: 'https://koctas-prod.mirakl.net', help: 'Panele girdiğiniz adres farklıysa (tarayıcı adres çubuğu) buraya yazın.' },
+    ],
+    needs: { secret: 'none', seller: 'optional' },
     secretRequired: false,
   },
   etsy: {
@@ -122,16 +145,17 @@ export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = {
     panelName: 'Etsy Developers',
     steps: [
       'etsy.com/developers adresinde "Create a New App" ile uygulama oluşturun.',
-      'Keystring ve Shared Secret değerlerini kopyalayıp aşağıya girin.',
-      'Uygulamanın "Callback URL" listesine bu panelin adresini ekleyin: <panel adresi>/api/auth/etsy/callback',
-      'Kaydettikten sonra "Etsy ile bağlan" butonuna basıp mağazanıza erişim izni verin; Shop ID otomatik doldurulur.',
+      'Keystring ve Shared Secret değerlerini kopyalayıp aşağıya yapıştırın.',
+      'Uygulamanın "Callback URL" listesine şu adresi ekleyin: <panel adresi>/api/auth/etsy/callback',
+      '"Anahtarları kaydet"e, ardından "Etsy ile bağlan"a basıp mağazanıza izin verin; mağaza numarası kendiliğinden gelir.',
     ],
     extra: [
+      { key: 'shippingProfileId', label: 'Kargo profili numarası', type: 'number', help: 'Etsy Shop Manager → Settings → Shipping settings. Ürün yayınlamak için gerekli.' },
+      { key: 'taxonomyId', label: 'Varsayılan Etsy kategori numarası', type: 'number' },
       { key: 'shopCurrency', label: 'Mağaza para birimi', placeholder: 'USD' },
-      { key: 'taxonomyId', label: 'Varsayılan Etsy kategori (taxonomy) ID', type: 'number' },
-      { key: 'shippingProfileId', label: 'Kargo profili ID', type: 'number', help: 'Etsy Shop Manager → Settings → Shipping settings.' },
     ],
+    needs: { secret: 'optional', seller: 'auto' },
     secretRequired: false,
-    note: 'Etsy, API erişimi için OAuth izni ister; anahtarları kaydettikten sonra "Etsy ile bağlan" butonu görünür.',
+    note: 'Etsy, mağazanıza erişim için ayrıca izin ister; anahtarları kaydettikten sonra "Etsy ile bağlan" butonu görünür.',
   },
 };

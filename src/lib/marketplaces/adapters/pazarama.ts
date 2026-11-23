@@ -1,9 +1,8 @@
 import type { OrderStatus } from '../meta';
 import type {
-  AdapterResult, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder,
-  ProductPayload, RemoteProduct, StockUpdate,
+  AdapterResult, BrandOption, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { basicAuth, chunk, dateWindows, errorMessage, num, request, str } from '../http';
+import { basicAuth, cachedCategories, chunk, dateWindows, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
 
 /**
  * Pazarama İş Ortağım API adaptörü.
@@ -135,6 +134,68 @@ export class PazaramaAdapter implements MarketplaceAdapter {
       brand: str(p.brandName), vatRate: num(p.vatRate, 20), price: num(p.salePrice), listPrice: num(p.listPrice), costPrice: 0, stock: num(p.stockCount), images: [], attributes: {},
     }));
   }
+
+  /**
+   * Sipariş durumu → Pazarama (sipariş kalemi durum kodları: 12 Hazırlanıyor, 5 Kargoya verildi, 11 Teslim edildi).
+   * Kodlar Ayarlar > Gelişmiş'te (statusCodes) değiştirilebilir. Gerçek hesapla doğrulanmadı.
+   */
+  async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
+    const o = rec(u.raw);
+    const codes = { preparing: 12, shipped: 5, delivered: 11, ...rec(this.c.extra.statusCodes) } as Record<string, unknown>;
+    const orderNumber = str(o.orderNumber ?? o.orderId) || u.externalOrderId;
+    if (u.status === 'cancelled') return notSupported('Pazarama\'da satıcı iptali İş Ortağım panelinden yapılır. Stok panelde iade edildi.');
+    if (u.status === 'new' || codes[u.status] == null) return notSupported('Bu durum Pazarama\'ya gönderilemez.');
+    try {
+      const items = recs(o.items);
+      const targets = items.length ? items.map((i) => str(i.orderItemId ?? i.id)).filter(Boolean) : [''];
+      for (const orderItemId of targets) {
+        const res = await request<{ success?: boolean; userMessage?: string; message?: string }>(`${this.base}/order/updateOrderStatus`, {
+          method: 'PUT', headers: await this.headers(),
+          json: {
+            orderNumber,
+            ...(orderItemId ? { item: { orderItemId, status: num(codes[u.status]), ...(u.trackingNumber ? { shippingTrackingNumber: u.trackingNumber } : {}) } } : { status: num(codes[u.status]) }),
+          },
+        });
+        if (res?.success === false) return { ok: false, message: res.userMessage || res.message || 'Pazarama durumu kabul etmedi.' };
+      }
+      return { ok: true, message: 'Pazarama\'da sipariş durumu güncellendi.' };
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
+  }
+
+  /** Pazarama kategori araması */
+  async searchCategories(q: string): Promise<CategoryOption[]> {
+    const all = await cachedCategories('pazarama', async () => {
+      const res = await request<unknown>(`${this.base}/category/getCategoryTree`, { headers: await this.headers() });
+      return flattenCategories(Array.isArray(res) ? res : rec(res).data);
+    });
+    return searchIn(all, q);
+  }
+
+  /** Pazarama marka araması */
+  async searchBrands(q: string): Promise<BrandOption[]> {
+    const res = await request<unknown>(`${this.base}/brand/getBrands?Name=${encodeURIComponent(q)}&Page=1&Size=30`, { headers: await this.headers() });
+    return recs(Array.isArray(res) ? res : rec(res).data).map((b) => ({ id: str(b.id), name: str(b.name) })).filter((b) => b.id);
+  }
+
+  /** İçerik güncellemesi (ad, açıklama, görseller). Yol Ayarlar > Gelişmiş (productUpdatePath) ile değiştirilebilir. */
+  async updateProduct(p: ProductPayload): Promise<AdapterResult> {
+    try {
+      const res = await request<{ data?: { batchRequestId?: string }; success?: boolean; userMessage?: string }>(
+        `${this.base}${str(this.c.extra.productUpdatePath) || '/product/update'}`, {
+          method: 'POST', headers: await this.headers(),
+          json: { products: [{
+            code: p.barcode, name: p.title, displayName: p.title, description: p.description || p.title,
+            images: p.images.map((imageurl) => ({ imageurl })), ...(Array.isArray(p.attributes.attributes) ? { attributes: p.attributes.attributes } : {}),
+          }] },
+        });
+      if (res?.success === false) return { ok: false, message: res.userMessage || 'Pazarama güncellemeyi reddetti.' };
+      return { ok: true, status: 'pending', ref: res?.data?.batchRequestId ?? null, message: 'İçerik güncellemesi Pazarama\'ya gönderildi.' };
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
+  }
 }
 
 const val = (x: { value?: number } | number | undefined) => (typeof x === 'object' && x !== null ? x.value : x);
@@ -143,7 +204,7 @@ function mapPzStatus(s: number): OrderStatus {
   // Pazarama sipariş durumları (dokümana göre): 3 Ödeme alındı, 5 Hazırlanıyor, 6 Kargoya verildi, 11 Teslim edildi, 12/13 İptal/İade
   if (s === 11) return 'delivered';
   if (s === 6) return 'shipped';
-  if (s === 5 || s === 7) return 'preparing';
+  if (s === 5 || s === 7 || s === 12) return 'preparing';
   if (s === 12 || s === 13 || s === 14) return 'cancelled';
   return 'new';
 }

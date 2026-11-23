@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
-import { handle, HttpError } from '@/lib/api';
+import { handlePublic, HttpError } from '@/lib/api';
+import { rawDb } from '@/lib/supabase/server';
+import { withStore } from '@/lib/tenant';
 import { isMarketplace } from '@/lib/marketplaces/meta';
 import { log, pollOrders } from '@/lib/sync/engine';
 
@@ -10,13 +12,13 @@ export const maxDuration = 60;
 const safeEq = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 /**
- * Pazaryeri webhook alıcısı: /api/webhooks/trendyol?token=WEBHOOK_SECRET
+ * Pazaryeri webhook alıcısı: /api/webhooks/trendyol?store=MAĞAZA_ID&token=WEBHOOK_SECRET
  * Doğrulama: ?token=, "x-webhook-token" başlığı veya Basic Auth parolası WEBHOOK_SECRET olmalı.
  * Strateji: Webhook "tetikleyici", API "gerçek kaynak". Gövde ayrıştırılmaz; ilgili pazaryerinden
  * son siparişler hemen çekilir. Böylece payload format değişikliklerinden etkilenmez ve
  * apply_order idempotent olduğu için aynı sipariş iki kez stok düşmez.
  */
-export const POST = handle(async (req: Request, ctx: { params: Promise<{ marketplace: string }> }) => {
+export const POST = handlePublic(async (req: Request, ctx: { params: Promise<{ marketplace: string }> }) => {
   const { marketplace } = await ctx.params;
   if (!isMarketplace(marketplace)) throw new HttpError(404, 'Bilinmeyen pazaryeri.');
 
@@ -29,8 +31,15 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ marketp
     return NextResponse.json({ error: 'Yetkisiz' }, { status: 401 });
   }
 
+  const storeId = url.searchParams.get('store') ?? '';
+  if (!/^[0-9a-f-]{36}$/i.test(storeId)) throw new HttpError(400, 'Webhook adresinde ?store= mağaza kimliği eksik.');
+  const { data: store } = await rawDb().from('stores').select('id').eq('id', storeId).maybeSingle();
+  if (!store) throw new HttpError(404, 'Mağaza bulunamadı.');
+
   const body = await req.text();
-  await log('info', 'order', marketplace, `Webhook alındı (${body.length} bayt) — siparişler çekiliyor.`);
-  const summary = await pollOrders([marketplace]);
-  return { received: true, summary };
+  return withStore(storeId, async () => {
+    await log('info', 'order', marketplace, `Webhook alındı (${body.length} bayt) — siparişler çekiliyor.`);
+    const summary = await pollOrders([marketplace]);
+    return { received: true, summary };
+  });
 });

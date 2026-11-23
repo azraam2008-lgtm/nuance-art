@@ -1,39 +1,41 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
-import { MARKETPLACES, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import type { RemoteProduct } from '@/lib/marketplaces/types';
 import { api, useLive, useToast } from './live';
 import { Button, MarketplaceBadge, Modal, tl2 } from './ui';
 
 type Remote = RemoteProduct & { alreadyImported: boolean };
 
-/** "Trendyol'dan İçe Aktar ve Diğerlerine Dağıt" */
-export default function TrendyolImport({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** "Pazaryerinden İçe Aktar ve Diğerlerine Dağıt" — bağlı herhangi bir pazaryerinden ürünleri panele alır */
+export default function MarketplaceImport({ open, onClose, sources }: { open: boolean; onClose: () => void; sources: MarketplaceName[] }) {
+  const [source, setSource] = useState<MarketplaceName>(sources[0] ?? 'trendyol');
   const toast = useToast();
   const { bump } = useLive();
   const [items, setItems] = useState<Remote[] | null>(null);
   const [mode, setMode] = useState<'live' | 'demo'>('demo');
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [targets, setTargets] = useState<MarketplaceName[]>(['hepsiburada', 'n11', 'ciceksepeti']);
+  const [targets, setTargets] = useState<MarketplaceName[]>([]);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Array<{ sku: string; ok: boolean; message: string; publish?: Record<string, { ok: boolean; message: string }> }> | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setItems(null); setError(null); setSelected([]); setResults(null);
-    api<{ products: Remote[]; mode: 'live' | 'demo' }>('/api/products/import-trendyol')
+    setTargets(sources.filter((m) => m !== source));
+    api<{ products: Remote[]; mode: 'live' | 'demo' }>(`/api/products/import?source=${source}`)
       .then((r) => { setItems(r.products); setMode(r.mode); })
       .catch((e: Error) => setError(e.message));
-  }, [open]);
+  }, [open, source, sources]);
 
   async function run() {
     if (!items) return;
     setBusy(true);
     try {
-      const r = await api<{ results: NonNullable<typeof results> }>('/api/products/import-trendyol', {
-        method: 'POST', body: { products: items.filter((i) => selected.includes(i.externalId)), marketplaces: targets },
+      const r = await api<{ results: NonNullable<typeof results> }>('/api/products/import', {
+        method: 'POST', body: { source, products: items.filter((i) => selected.includes(i.externalId)), marketplaces: targets },
       });
       setResults(r.results);
       toast('İçe aktarma tamamlandı.');
@@ -46,8 +48,21 @@ export default function TrendyolImport({ open, onClose }: { open: boolean; onClo
   }
 
   return (
-    <Modal open={open} onClose={onClose} wide title={<span className="flex items-center gap-2"><MarketplaceBadge name="trendyol" /> Trendyol&apos;dan İçe Aktar ve Dağıt</span>}>
-      {mode === 'demo' && items && <div className="mb-3 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">Demo modu: örnek Trendyol kataloğu gösteriliyor.</div>}
+    <Modal open={open} onClose={onClose} wide title="Pazaryerindeki ürünleri panele aktar">
+      {!results && (
+        <div className="mb-4">
+          <div className="text-xs font-medium text-slate-600 mb-2">Ürünler hangi pazaryerinden alınsın?</div>
+          <div className="flex flex-wrap gap-2">
+            {sources.map((m) => (
+              <button key={m} type="button" onClick={() => setSource(m)}
+                className={`rounded-lg border px-2 py-1.5 ${m === source ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200 opacity-70 hover:opacity-100'}`}>
+                <MarketplaceBadge name={m} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {mode === 'demo' && items && <div className="mb-3 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">Demo modu: örnek katalog gösteriliyor.</div>}
       {error && <div className="text-sm text-rose-700">{error}</div>}
       {!items && !error && <div className="flex justify-center py-10 text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>}
 
@@ -69,7 +84,7 @@ export default function TrendyolImport({ open, onClose }: { open: boolean; onClo
         </div>
       ) : items && (
         <div className="space-y-4">
-          {!items.length && <div className="text-sm text-slate-500 py-6 text-center">Trendyol mağazasında onaylı ürün bulunamadı.</div>}
+          {!items.length && <div className="text-sm text-slate-500 py-6 text-center">{MARKETPLACE_META[source].at} yayında ürün bulunamadı.</div>}
           <ul className="divide-y divide-slate-100 border border-slate-200 rounded-lg max-h-80 overflow-y-auto">
             {items.map((p) => (
               <li key={p.externalId} className={`flex items-center gap-3 p-3 ${p.alreadyImported ? 'opacity-50' : ''}`}>
@@ -84,9 +99,9 @@ export default function TrendyolImport({ open, onClose }: { open: boolean; onClo
             ))}
           </ul>
           <div>
-            <div className="text-xs font-medium text-slate-600 mb-2">Dağıtılacak pazaryerleri</div>
+            <div className="text-xs font-medium text-slate-600 mb-2">Aktarılan ürünler şu pazaryerlerinde de yayınlansın (isteğe bağlı)</div>
             <div className="flex flex-wrap gap-2">
-              {MARKETPLACES.filter((m) => m !== 'trendyol').map((m) => (
+              {MARKETPLACES.filter((m) => m !== source && sources.includes(m)).map((m) => (
                 <label key={m} className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer">
                   <input type="checkbox" className="accent-indigo-600" checked={targets.includes(m)}
                     onChange={(e) => setTargets((s) => (e.target.checked ? [...s, m] : s.filter((x) => x !== m)))} />
@@ -97,8 +112,8 @@ export default function TrendyolImport({ open, onClose }: { open: boolean; onClo
           </div>
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="secondary" onClick={onClose}>Vazgeç</Button>
-            <Button onClick={run} loading={busy} disabled={!selected.length} className="bg-[#F27A1A] hover:bg-[#d96a10]">
-              <Download className="w-4 h-4" /> {selected.length || ''} Ürünü Aktar & Dağıt
+            <Button onClick={run} loading={busy} disabled={!selected.length}>
+              <Download className="w-4 h-4" /> {selected.length || ''} Ürünü Aktar{targets.length ? ' & Dağıt' : ''}
             </Button>
           </div>
         </div>

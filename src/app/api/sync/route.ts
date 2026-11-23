@@ -1,11 +1,12 @@
 import { handle } from '@/lib/api';
 import { db } from '@/lib/supabase/server';
+import { currentStoreId } from '@/lib/tenant';
 import { pollOrders, reconcile } from '@/lib/sync/engine';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
-let running = false;
+const running = new Set<string>();
 
 /**
  * Panel açıkken tarayıcı birkaç dakikada bir bunu çağırır (oturum gerekli):
@@ -15,8 +16,9 @@ let running = false;
 export const POST = handle(async () => {
   const { data } = await db().from('app_settings').select('value').eq('key', 'last_auto_sync').maybeSingle();
   const last = Date.parse((data?.value as { at?: string } | null)?.at ?? '') || 0;
-  if (running || Date.now() - last < 120_000) return { skipped: true };
-  running = true;
+  const sid = currentStoreId();
+  if (running.has(sid) || Date.now() - last < 120_000) return { skipped: true };
+  running.add(sid);
   try {
     const at = new Date().toISOString();
     await db().from('app_settings').upsert({ key: 'last_auto_sync', value: { at } });
@@ -24,6 +26,6 @@ export const POST = handle(async () => {
     const reconciliation = await reconcile();
     return { skipped: false, orders, reconciliation, at };
   } finally {
-    running = false;
+    running.delete(sid);
   }
 });

@@ -4,7 +4,7 @@ import { getAdapter } from '@/lib/sync/engine';
 
 export const dynamic = 'force-dynamic';
 
-// Pazaryeri kategori araması (destekleyen adaptörlerde: Trendyol)
+// Pazaryeri kategori araması (tüm pazaryerleri; Koçtaş'ta Mirakl hiyerarşisi)
 export const GET = handle(async (req: Request, ctx: { params: Promise<{ mp: string }> }) => {
   const { mp } = await ctx.params;
   if (!isMarketplace(mp)) throw new HttpError(404, 'Bilinmeyen pazaryeri.');

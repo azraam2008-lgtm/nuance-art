@@ -6,7 +6,7 @@ import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
  * Herkese açık: giriş/kurulum sayfaları, auth API'leri, webhook ve cron (kendi gizli anahtarlarıyla korunur),
  * Etsy OAuth dönüşü (kendi state doğrulamasıyla).
  */
-const PUBLIC = [/^\/login$/, /^\/setup$/, /^\/api\/auth\//, /^\/api\/webhooks\//, /^\/api\/cron\//];
+const PUBLIC = [/^\/login$/, /^\/setup$/, /^\/signup$/, /^\/forgot$/, /^\/reset$/, /^\/api\/auth\//, /^\/api\/webhooks\//, /^\/api\/cron\//];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

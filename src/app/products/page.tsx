@@ -6,7 +6,7 @@ import ProductCostModal, { type ProductCfg } from '@/components/ProductCostModal
 import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Empty, ErrorBox, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
-import TrendyolImport from '@/components/TrendyolImport';
+import MarketplaceImport from '@/components/MarketplaceImport';
 import { STATUS_LABEL, STATUS_STYLE, stockSynced, type Product } from '@/components/product-shared';
 
 function Thumb({ p, className }: { p: Product; className?: string }) {
@@ -29,13 +29,13 @@ export default function ProductsPage() {
   const [costFor, setCostFor] = useState<ProductCfg | null>(null);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'all' | 'low' | 'error' | 'pending'>('all');
-  const [tyConnected, setTyConnected] = useState(false);
+  const [connected, setConnected] = useState<MarketplaceName[]>([]);
   const toast = useToast();
   const { bump } = useLive();
 
   useEffect(() => {
     api<{ credentials: Array<{ marketplace: string; mode: string }> }>('/api/credentials')
-      .then((r) => setTyConnected(r.credentials.some((c) => c.marketplace === 'trendyol' && c.mode !== 'off'))).catch(() => {});
+      .then((r) => setConnected(r.credentials.filter((c) => c.mode !== 'off').map((c) => c.marketplace as MarketplaceName))).catch(() => {});
   }, []);
 
   async function sync(p: Product) {
@@ -74,7 +74,7 @@ export default function ProductsPage() {
   return (
     <div className="space-y-6 fade-in">
       <div className="flex flex-wrap gap-2 justify-end">
-        {tyConnected && <Button variant="secondary" onClick={() => setImportOpen(true)}><Download className="w-4 h-4" /> Trendyol&apos;daki ürünleri içe aktar</Button>}
+        {connected.length > 0 && <Button variant="secondary" onClick={() => setImportOpen(true)}><Download className="w-4 h-4" /> Pazaryerindeki ürünleri içe aktar</Button>}
         <Link href="/products/new" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white"><Plus className="w-4 h-4" /> Yeni Ürün Ekle</Link>
       </div>
 
@@ -183,7 +183,7 @@ export default function ProductsPage() {
         </>
       )}
       <ProductCostModal product={costFor} onClose={() => setCostFor(null)} />
-      {tyConnected && <TrendyolImport open={importOpen} onClose={() => setImportOpen(false)} />}
+      {connected.length > 0 && <MarketplaceImport open={importOpen} onClose={() => setImportOpen(false)} sources={connected} />}
     </div>
   );
 }

@@ -1,11 +1,13 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ChevronDown, Database, ShieldCheck, Zap } from 'lucide-react';
+import { ChevronDown, Database, Save, ShieldCheck, Truck, Zap } from 'lucide-react';
 import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import MarketplaceConnect, { type Cred } from '@/components/MarketplaceConnect';
-import { Button, Card, ErrorBox, MarketplaceBadge, PageLoader, cx } from '@/components/ui';
+import { CARRIERS_BY_MARKETPLACE } from '@/lib/fees/carriers';
+import { DEFAULT_COMMISSION } from '@/lib/fees/commission-defaults';
+import { Button, Card, ErrorBox, MarketplaceBadge, PageLoader, cx, inputClass } from '@/components/ui';
 
 function SettingsInner() {
   const { data, error, loading, reload } = useLiveData<{ credentials: Cred[]; demoMode: boolean; encryption: boolean }>('/api/credentials');
@@ -53,8 +55,82 @@ function SettingsInner() {
         ))}
       </div>
 
+      <ListingDefaultsCard connected={data.credentials.filter((c) => c.mode !== 'off').map((c) => c.marketplace)} />
+
       {data.demoMode && <DemoTools onDone={() => { reload(); bump(); }} />}
     </div>
+  );
+}
+
+type Defaults = Record<string, { carrier: string; handlingDays: number; sameDayTag: boolean; fastTag: boolean; commissionRate: string }>;
+
+/** Yeni ürün eklerken otomatik gelen kargo / termin / komisyon değerleri (pazaryeri başına) */
+function ListingDefaultsCard({ connected }: { connected: MarketplaceName[] }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [defaults, setDefaults] = useState<Defaults | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open || defaults) return;
+    api<{ listingDefaults: Record<string, Partial<Defaults[string]> & { commissionRate?: number | null }> }>('/api/onboarding').then((r) => {
+      setDefaults(Object.fromEntries(MARKETPLACES.map((m) => {
+        const d = r.listingDefaults?.[m] ?? {};
+        return [m, {
+          carrier: d.carrier ?? CARRIERS_BY_MARKETPLACE[m]?.[0] ?? '', handlingDays: d.handlingDays ?? 1, sameDayTag: d.sameDayTag ?? false, fastTag: d.fastTag ?? false,
+          commissionRate: d.commissionRate != null ? String(d.commissionRate) : String(DEFAULT_COMMISSION[m] ?? ''),
+        }];
+      })));
+    }).catch((e: Error) => toast(e.message, 'err'));
+  }, [open, defaults, toast]);
+
+  async function save() {
+    if (!defaults) return;
+    setBusy(true);
+    try {
+      await api('/api/onboarding', { method: 'POST', body: { listingDefaults: Object.fromEntries(Object.entries(defaults).map(([m, d]) => [m, { ...d, commissionRate: d.commissionRate === '' ? null : Number(d.commissionRate.replace(',', '.')) }])) } });
+      toast('Varsayılanlar kaydedildi.');
+    } catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <button onClick={() => setOpen((x) => !x)} className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-slate-50">
+        <Truck className="w-4 h-4 text-slate-500" />
+        <span className="font-medium">Kargo, termin ve komisyon varsayılanları</span>
+        <span className="flex-1" />
+        <ChevronDown className={cx('w-4 h-4 text-slate-400 transition', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="px-5 pb-5 border-t border-slate-100 pt-4 space-y-3">
+          <p className="text-sm text-slate-600">Yeni ürün eklerken bu değerler otomatik gelir; ürün bazında değiştirebilirsiniz. Kâr hesabı bunlara göre yapılır.</p>
+          {!defaults ? <PageLoader /> : !connected.length ? <p className="text-sm text-amber-700">Önce bir pazaryeri bağlayın.</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-slate-500"><tr><th className="text-left py-2">Pazaryeri</th><th className="text-left px-1">Kargo firması</th><th className="text-left px-1">Kargoya teslim (gün)</th><th className="px-1">Bugün Kargoda</th><th className="px-1">Hızlı Teslimat</th><th className="text-left px-1">Komisyon %</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {connected.map((m) => {
+                    const d = defaults[m];
+                    const set = (patch: Partial<Defaults[string]>) => setDefaults((x) => (x ? { ...x, [m]: { ...x[m], ...patch } } : x));
+                    return (
+                      <tr key={m}>
+                        <td className="py-2"><MarketplaceBadge name={m} /></td>
+                        <td className="px-1"><select className={`${inputClass} py-1`} value={d.carrier} onChange={(e) => set({ carrier: e.target.value })}>{(CARRIERS_BY_MARKETPLACE[m] ?? []).map((c) => <option key={c}>{c}</option>)}</select></td>
+                        <td className="px-1"><input className={`${inputClass} py-1 w-16`} type="number" min={0} value={d.handlingDays} onChange={(e) => set({ handlingDays: Number(e.target.value) })} /></td>
+                        <td className="px-1 text-center"><input type="checkbox" className="accent-indigo-600" checked={d.sameDayTag} onChange={(e) => set({ sameDayTag: e.target.checked, handlingDays: e.target.checked ? 0 : d.handlingDays })} /></td>
+                        <td className="px-1 text-center"><input type="checkbox" className="accent-indigo-600" checked={d.fastTag} onChange={(e) => set({ fastTag: e.target.checked })} /></td>
+                        <td className="px-1"><input className={`${inputClass} py-1 w-20`} inputMode="decimal" value={d.commissionRate} onChange={(e) => set({ commissionRate: e.target.value })} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {defaults && connected.length > 0 && <div className="flex justify-end"><Button loading={busy} onClick={save}><Save className="w-4 h-4" /> Kaydet</Button></div>}
+        </div>
+      )}
+    </Card>
   );
 }
 

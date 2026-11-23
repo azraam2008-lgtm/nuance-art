@@ -1,9 +1,8 @@
 import type { OrderStatus } from '../meta';
 import type {
-  AdapterResult, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder,
-  ProductPayload, RemoteProduct, StockUpdate,
+  AdapterResult, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { chunk, dateWindows, errorMessage, num, request, str } from '../http';
+import { cachedCategories, chunk, dateWindows, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
 
 /**
  * N11 REST API adaptörü (yeni nesil "ms" servisleri).
@@ -135,6 +134,59 @@ export class N11Adapter implements MarketplaceAdapter {
       price: num(p.salePrice), listPrice: num(p.listPrice), costPrice: 0, stock: num(p.quantity),
       images: Array.isArray(p.imageUrls) ? (p.imageUrls as string[]) : [], attributes: {},
     }));
+  }
+
+  /**
+   * Sipariş durumu → N11. Hazırlanıyor → sipariş satırları "Picking" (onaylandı) yapılır.
+   * Kargoda/Teslim edildi bilgisi N11'e kargo firmasından gelir; iptal N11 Satıcı Ofisi'nden yapılır.
+   */
+  async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
+    const lines = recs(rec(u.raw).lines).map((l) => num(l.orderLineId ?? l.id)).filter(Boolean);
+    try {
+      switch (u.status) {
+        case 'preparing':
+          if (!lines.length) return { ok: false, message: 'N11 sipariş satırları bulunamadı (sipariş yeniden senkronlanmalı).' };
+          await request(`${this.base}/rest/order/v1/update`, {
+            method: 'PUT', headers: this.headers, json: { lines: lines.map((lineId) => ({ lineId })), status: 'Picking' },
+          });
+          return { ok: true, message: 'N11\'de sipariş onaylandı (Hazırlanıyor).' };
+        case 'cancelled':
+          return notSupported('N11 API\'si satıcı iptalini desteklemiyor; siparişi N11 Satıcı Ofisi\'nden iptal edin. Stok panelde iade edildi.');
+        case 'shipped': case 'delivered':
+          return notSupported('N11\'de "Kargoda" ve "Teslim edildi" bilgisi kargo firmasından otomatik gelir.');
+        default:
+          return notSupported('N11\'de sipariş "Yeni" durumuna geri alınamaz.');
+      }
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
+  }
+
+  /** N11 kategori araması */
+  async searchCategories(q: string): Promise<CategoryOption[]> {
+    const all = await cachedCategories('n11', async () => {
+      const res = await request<unknown>(`${this.base}/cdn/categories`, { headers: this.headers });
+      return flattenCategories(Array.isArray(res) ? res : rec(res).categories ?? rec(res).content);
+    });
+    return searchIn(all, q);
+  }
+
+  /** İçerik güncellemesi (başlık, açıklama, görseller) — N11 görev olarak işler */
+  async updateProduct(p: ProductPayload): Promise<AdapterResult> {
+    try {
+      const res = await request<{ id?: number | string; status?: string; reasons?: string[] }>(`${this.base}/ms/product/tasks/product-update`, {
+        method: 'POST', headers: this.headers,
+        json: { payload: { integrator: this.integrator, skus: [{
+          stockCode: p.sku, title: p.title.slice(0, 65), description: p.description || p.title,
+          images: p.images.slice(0, 8).map((url, i) => ({ url, order: i + 1 })),
+          ...(Array.isArray(p.attributes.attributes) ? { attributes: p.attributes.attributes } : {}),
+        }] } },
+      });
+      if (res?.status === 'REJECT') return { ok: false, message: (res.reasons ?? []).join('; ') || 'N11 güncellemeyi reddetti.' };
+      return { ok: true, status: 'pending', ref: res?.id != null ? String(res.id) : null, message: `İçerik güncellemesi N11'e gönderildi (taskId: ${res?.id ?? '-'}).` };
+    } catch (e) {
+      return { ok: false, message: errorMessage(e) };
+    }
   }
 }
 

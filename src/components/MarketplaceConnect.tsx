@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { CheckCircle2, ExternalLink, Link2, Plug, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ExternalLink, Link2, Plug, XCircle } from 'lucide-react';
 import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
-import { GUIDES } from '@/lib/marketplaces/guides';
+import { GUIDES, hasRequiredKeys } from '@/lib/marketplaces/guides';
 import { api, useToast } from './live';
 import { Button, Field, MarketplaceBadge, cx, fmtDate, inputClass } from './ui';
 
@@ -27,6 +27,9 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [advanced, setAdvanced] = useState(false);
+  const showSecret = guide.needs.secret !== 'none';
+  const showSeller = guide.needs.seller === 'required' || guide.needs.seller === 'optional' || (guide.needs.seller === 'auto' && !!sellerId);
 
   const extraConfig = () => {
     const out: Record<string, unknown> = { ...(cred.extraConfig ?? {}) };
@@ -39,9 +42,9 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
   };
   const missing = () => {
     if (!apiKey.trim()) return meta.apiKeyLabel;
-    if (mp !== 'etsy' && !sellerId.trim()) return meta.sellerIdLabel;
-    if (guide.secretRequired && !apiSecret && !cred.hasSecret) return meta.apiSecretLabel;
-    const req = guide.extra.find((f) => f.required && !extra[f.key]?.trim());
+    if (guide.needs.seller === 'required' && !sellerId.trim()) return meta.sellerIdLabel;
+    if (guide.needs.secret === 'required' && !apiSecret && !cred.hasSecret) return meta.apiSecretLabel;
+    const req = guide.extra.find((f) => f.required && !f.default && !extra[f.key]?.trim());
     return req?.label ?? null;
   };
 
@@ -64,7 +67,7 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
     if (activate && result && !result.ok && !window.confirm('Bağlantı testi başarısız oldu. Yine de kaydedip bağlantıyı etkinleştirmek istiyor musunuz?')) return;
     setSaving(true);
     try {
-      await api('/api/credentials', { method: 'PUT', body: { marketplace: mp, apiKey, apiSecret: apiSecret || undefined, sellerId, isActive: activate && (mp !== 'etsy' || !!sellerId), extraConfig: extraConfig() } });
+      await api('/api/credentials', { method: 'PUT', body: { marketplace: mp, apiKey, apiSecret: apiSecret || undefined, sellerId, isActive: activate && hasRequiredKeys(mp, { apiKey, apiSecret, hasSecret: cred.hasSecret, sellerId }), extraConfig: extraConfig() } });
       setApiSecret('');
       toast(activate ? `${meta.label} bağlandı.` : `${meta.label} bağlantısı kapatıldı.`);
       onSaved?.(activate);
@@ -84,7 +87,7 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
         <span className={cx('text-xs font-medium', cred.mode === 'live' ? 'text-emerald-600' : 'text-slate-400')}>{cred.mode === 'live' ? '● Bağlı' : '○ Bağlı değil'}</span>
       </div>
       {!compact && (
-        <div className="bg-slate-50 rounded-lg p-4 text-sm">
+        <div className="bg-indigo-50/60 rounded-lg p-4 text-sm">
           <div className="font-medium mb-2">Bilgileri nereden alırım?</div>
           <ol className="list-decimal pl-5 space-y-1 text-slate-700">{guide.steps.map((s, i) => <li key={i}>{s.replace('<panel adresi>', typeof window !== 'undefined' ? window.location.origin : '')}</li>)}</ol>
           <a href={guide.panelUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-indigo-600 text-xs mt-2 hover:underline">{guide.panelName} sayfasını aç <ExternalLink className="w-3 h-3" /></a>
@@ -92,17 +95,39 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label={`${meta.apiKeyLabel} *`}><input className={`${inputClass} font-mono`} value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" /></Field>
-        <Field label={`${meta.apiSecretLabel}${guide.secretRequired ? ' *' : ''}`} hint={cred.hasSecret ? `Kayıtlı: ${cred.apiSecretMasked} — değiştirmek için yeni değer girin.` : undefined}>
-          <input type="password" className={`${inputClass} font-mono`} value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} autoComplete="new-password" placeholder={cred.hasSecret ? '••••••••' : ''} />
-        </Field>
-        <Field label={`${meta.sellerIdLabel}${mp === 'etsy' ? ' (bağlanınca otomatik)' : ' *'}`}><input className={`${inputClass} font-mono`} value={sellerId} onChange={(e) => setSellerId(e.target.value)} /></Field>
-        {guide.extra.map((f) => (
-          <Field key={f.key} label={`${f.label}${f.required ? ' *' : ''}`} hint={f.help}>
+        <Field label={meta.apiKeyLabel}><input className={`${inputClass} font-mono`} value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" spellCheck={false} /></Field>
+        {showSecret && (
+          <Field label={`${meta.apiSecretLabel}${guide.needs.secret === 'optional' ? ' (varsa)' : ''}`} hint={cred.hasSecret ? `Kayıtlı (${cred.apiSecretMasked}) — değiştirmek için yenisini yapıştırın.` : undefined}>
+            <input type="password" className={`${inputClass} font-mono`} value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} autoComplete="new-password" placeholder={cred.hasSecret ? '••••••••' : ''} spellCheck={false} />
+          </Field>
+        )}
+        {showSeller && (
+          <Field label={`${meta.sellerIdLabel}${guide.needs.seller === 'optional' ? ' — isteğe bağlı' : ''}`}>
+            <input className={`${inputClass} font-mono`} value={sellerId} onChange={(e) => setSellerId(e.target.value)} readOnly={guide.needs.seller === 'auto'} spellCheck={false} />
+          </Field>
+        )}
+        {guide.extra.filter((f) => f.required && !f.default).map((f) => (
+          <Field key={f.key} label={f.label} hint={f.help}>
             <input className={inputClass} type={f.type === 'number' ? 'number' : 'text'} placeholder={f.placeholder} value={extra[f.key] ?? ''} onChange={(e) => setExtra((x) => ({ ...x, [f.key]: e.target.value }))} />
           </Field>
         ))}
       </div>
+      {guide.extra.some((f) => !f.required || f.default) && (
+        <div>
+          <button type="button" onClick={() => setAdvanced((x) => !x)} className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1">
+            <ChevronDown className={cx('w-3.5 h-3.5 transition', advanced && 'rotate-180')} /> Gelişmiş ayarlar (isteğe bağlı — boş bırakabilirsiniz)
+          </button>
+          {advanced && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2 p-3 bg-slate-50 rounded-lg">
+              {guide.extra.filter((f) => !f.required || f.default).map((f) => (
+                <Field key={f.key} label={f.label} hint={f.help}>
+                  <input className={inputClass} type={f.type === 'number' ? 'number' : 'text'} placeholder={f.placeholder ?? f.default} value={extra[f.key] ?? ''} onChange={(e) => setExtra((x) => ({ ...x, [f.key]: e.target.value }))} />
+                </Field>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {result && <div className={cx('text-sm rounded-lg px-3 py-2 flex items-start gap-2', result.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800')}>{result.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <XCircle className="w-4 h-4 mt-0.5 shrink-0" />}{result.message}</div>}
       <div className="flex flex-wrap gap-2">
         {mp !== 'etsy' && <Button variant="secondary" loading={testing} onClick={test}><Plug className="w-4 h-4" /> Bağlantıyı Test Et</Button>}

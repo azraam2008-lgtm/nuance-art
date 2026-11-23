@@ -254,12 +254,42 @@ export async function recompute(orderIds: string[]) {
   }
 }
 
-/** Siparişi kargoya verildi olarak işaretler (Bugün Kargoda / termin kontrolü bu zamana göre yapılır) */
-export async function markShipped(orderId: string, at?: string) {
+export interface ShipInfo { trackingNumber?: string | null; carrier?: string | null; invoiceNumber?: string | null }
+export interface RemoteStatusResult { ok: boolean; message: string; unsupported?: boolean }
+
+/**
+ * Paneldeki sipariş durumunu siparişin geldiği pazaryerine bildirir.
+ * Hata siparişin paneldeki durumunu geri almaz; günlüğe yazılır ve kullanıcıya gösterilir.
+ */
+export async function pushOrderStatus(orderId: string, status: OrderStatus, info: ShipInfo = {}): Promise<RemoteStatusResult> {
+  const order = must(await db().from('orders').select('external_order_id, marketplace_name, raw, items:order_items(sku, quantity)').eq('id', orderId).single()) as
+    { external_order_id: string; marketplace_name: MarketplaceName; raw: unknown; items: Array<{ sku: string; quantity: number }> };
+  const mp = order.marketplace_name;
+  const label = MARKETPLACE_META[mp].label;
+  if ((order.raw as { simulated?: boolean } | null)?.simulated) return { ok: true, message: 'Simülasyon siparişi — pazaryerine gönderilmedi.', unsupported: true };
+  const adapter = (await loadAdapters()).get(mp)?.adapter;
+  if (!adapter) return { ok: false, message: `${label} bağlı değil; durum yalnızca panelde değişti.` };
+  if (!adapter.updateOrderStatus) return { ok: false, unsupported: true, message: `${label} için durum gönderimi yok.` };
+  let res: RemoteStatusResult;
+  try {
+    res = await adapter.updateOrderStatus({ externalOrderId: order.external_order_id, status, raw: order.raw, items: order.items, ...info });
+  } catch (e) {
+    res = { ok: false, message: errorMessage(e) };
+  }
+  const no = order.external_order_id.split('/')[0];
+  await log(res.ok ? 'success' : res.unsupported ? 'info' : 'error', 'order', mp,
+    res.ok ? `${label} ← #${no} ${ORDER_STATUS_META[status].label}: ${res.message}`
+      : res.unsupported ? `${label} ← #${no}: ${res.message}` : `${label} ← #${no} durumu GÖNDERİLEMEDİ: ${res.message}`);
+  return res;
+}
+
+/** Siparişi kargoya verildi olarak işaretler (Bugün Kargoda / termin kontrolü bu zamana göre yapılır) ve pazaryerine bildirir */
+export async function markShipped(orderId: string, at?: string, info: ShipInfo = {}) {
   const order = must(await db().from('orders').select('external_order_id, marketplace_name, status').eq('id', orderId).single()) as { external_order_id: string; marketplace_name: MarketplaceName; status: OrderStatus };
   if (order.status === 'cancelled') throw new Error('İptal edilmiş sipariş kargoya verilemez.');
   const shippedAt = at ?? new Date().toISOString();
   const u: Record<string, unknown> = { shipped_at: shippedAt };
+  if (info.carrier) u.carrier = info.carrier;
   if (order.status === 'new' || order.status === 'preparing') u.status = 'shipped';
   must(await db().from('orders').update(u).eq('id', orderId).select('id'));
   await recompute([orderId]);
@@ -268,17 +298,20 @@ export async function markShipped(orderId: string, at?: string) {
   const speed = cost?.same_day_eligible ? (cost.same_day_met ? 'aynı gün ✓' : 'aynı gün kaçırıldı ✗') : cost?.fast_eligible ? (cost.fast_met ? 'termin içinde ✓' : 'termin aşıldı ✗') : 'standart';
   await log(cost?.same_day_met === false || cost?.fast_met === false ? 'warning' : 'success', 'order', order.marketplace_name,
     `#${order.external_order_id} kargoya verildi (${speed}) — net kâr ${cost?.net_profit ?? '-'} ₺`);
-  return cost;
+  const remote = await pushOrderStatus(orderId, 'shipped', info);
+  return { cost, remote };
 }
 
-export async function changeOrderStatus(orderId: string, status: OrderStatus) {
+export async function changeOrderStatus(orderId: string, status: OrderStatus, info: ShipInfo = {}) {
   const res = must(await db().rpc('set_order_status', { p_order_id: orderId, p_status: status })) as { affected_product_ids: string[] };
   const order = must(await db().from('orders').select('external_order_id, marketplace_name').eq('id', orderId).single()) as { external_order_id: string; marketplace_name: MarketplaceName };
   await log(status === 'cancelled' ? 'warning' : 'info', 'order', order.marketplace_name,
     `#${order.external_order_id} durumu → ${ORDER_STATUS_META[status].label}${res.affected_product_ids.length ? ' (stok havuza iade edildi)' : ''}`);
   if (res.affected_product_ids.length) await pushStock(res.affected_product_ids, null);
+  if (status === 'shipped') await db().from('orders').update({ shipped_at: new Date().toISOString() }).eq('id', orderId).is('shipped_at', null);
   await recompute([orderId]);
-  return res;
+  const remote = await pushOrderStatus(orderId, status, info);
+  return { ...res, remote };
 }
 
 // ---------------------------------------------------------------------
