@@ -20,6 +20,11 @@ Bu dosya, projenin claude.ai sohbetinde yapılan işin özetidir. Yeni bir oturu
 - **İş kuyruğu ve İşlem Merkezi (`/operations`):** Pazaryerine gönderilemeyen stok/yayın/içerik/sipariş durumu `sync_jobs` tablosuna yazılır (`src/lib/sync/job-log.ts` → `noteResults`). Geçici hatalar (bağlantı, 429, 5xx) 1-5-15-60-180-360 dk aralıkla tekrar denenir; 4xx hatalar hemen "başarısız" olur. Çalışan: `src/lib/sync/jobs.ts` (`processDueJobs`), `/api/cron/sync` ve panelin `/api/sync`'i çağırır. Yeni bir pazaryeri gönderimi eklersen sonucunu `noteResults` ile bildir.
 - **Zamanlayıcı:** `supabase/zamanlayici.sql` Supabase pg_cron + pg_net ile 5 dakikada bir `/api/cron/sync?token=…` çağırır; anahtar `system_config.cron_token` (veritabanında üretilir, CRON_SECRET de kabul edilir).
 - **Varyantlar (seçenekler):** Her seçenek ayrı `products` satırı (kendi SKU, barkod, stok); `group_code` (ana ürün kodu) ile bağlanır, `variant_attrs` ({"Renk":"Kırmızı"}). Pazaryerine `ProductPayload.groupCode` ile tek ilan altında gider, başlığa seçenek değeri eklenir (`variantTitle`). Trendyol'da varyant özelliği (ör. Renk) kategori özelliğinden eşleştirilir. Başlık/açıklama/marka/kategori değişince diğer seçeneklere de uygulanır. Sihirbaz: `src/components/VariantEditor.tsx`.
+- **Deneme mağazası:** `stores.is_demo`; Hesabım'dan veya kurulumdan açılır (`/api/demo`). Açıkken o mağazada tüm pazaryerleri `DemoAdapter` (gerçek istek yok), örnek veri `seed_demo_data`, kapatınca `clear_store_data`. Gerçek ürün/bağlantı varsa açılmaz. `src/lib/demo.ts` → `isDemoStore()`.
+- **Sipariş durumları (8):** new, approved, preparing, invoiced, shipped, delivered, cancelled, returned (`meta.ts`). İptal ve iade stoğu havuza döndürür (`set_order_status`). Pazaryerine gönderimde `pushOrderStatus` eşler: approved→preparing, invoiced yalnızca Trendyol/idefix'e fatura no ile, returned/new gönderilmez. İade nedeni `orders.return_reason`. Toplu işlem `/api/orders/bulk`; geciken = açık durumda ve `order_costs.deadline` geçmiş.
+- **Finans:** `expenses` (aylık/tek seferlik işletme giderleri, `src/lib/finance/expenses.ts` ile aralığa orantılanır). Kârlılık'ta "işletme net kârı" = sipariş net kârı − reklam − giderler.
+- **Öneriler (`/insights`):** `src/lib/insights/analyze.ts` (deterministik): stok tükenme tahmini, satış trendi, kârsız ürünler, iade analizi, pazaryeri karşılaştırması, tekrar alan müşteri.
+- **Ürün araçları:** güvenlik stoğu (`products.safety_stock`, pazaryerine `sellableStock` gider), en düşük marj (`products.min_margin`) ve zararına satış uyarısı (`src/lib/fees/guard.ts`), toplu fiyat (`/api/products/bulk-price`, önizlemeli), Excel/CSV yükleme (`/api/products/bulk-import`, `src/components/ProductBulk.tsx`).
 - **Reklam (`/ads`):** Pazaryerleri reklam API'si açmıyor; sayfa her pazaryeri için rehber + panel linki verir, girilen reklam harcaması (`ad_spend`) Kârlılık'ta düşülür.
 - **Demo modu yok.** Yalnızca `DEMO_MODE=true` ortam değişkeni verilirse çalışır.
 
@@ -54,7 +59,7 @@ Hedef: Trendyol, Hepsiburada, N11 (ve diğer bağlı pazaryerleri) üzerinden sa
   - Ürün içe aktarma (`/api/products/import?source=`) bağlı her pazaryerinden çalışır.
 - **Senkron motoru:** `src/lib/sync/engine.ts` — `publishProduct`, `pushStock`, `ingestOrder`, `pollOrders`, `reconcile`.
 - **Kâr motoru:** `src/lib/fees/*`, saf TypeScript.
-- **Testler:** `npm test` → `tests/fees.test.ts`, `tests/rates.test.ts`, `tests/tenant.test.ts` (mağaza filtresi), `tests/password.test.ts`, `tests/jobs.test.ts` (hangi hata tekrar denenir).
+- **Testler:** `npm test` → fees, rates, tenant (mağaza filtresi), password, jobs (hangi hata tekrar denenir), expenses (gider orantılama), insights (öneri hesapları).
 - **Veritabanı şeması:** `supabase/schema.sql`. Tekrar çalıştırılabilir.
   - "9b) Çok mağazalı yapı" bölümü `stores` tablosunu ve `store_id` sütunlarını ekler; sahipsiz eski verileri ilk kullanıcının mağazasına taşır.
   - Tetikleyiciler alt satırların mağazasını üst satırdan alır ve başka mağazanın ürününe/siparişine bağlanmayı reddeder.
@@ -101,5 +106,8 @@ Yerel geliştirme için `.env.example` dosyasını `.env.local` olarak kopyala. 
   - Yolların çoğu Ayarlar > Gelişmiş'ten (`extra_config`) değiştirilebilir.
 - **Sık senkron:** cron-job.org yerine `supabase/zamanlayici.sql` (pg_cron) kullanılacak.
 - **Telefon uyumu (yapıldı):** `lg` altında yan menü soldan açılır çekmece, altta sekme çubuğu (`Shell.tsx`). Tablolu sayfalarda (Ürünler, Stok, Siparişler) `md` altında kart listesi gösterilir; yeni tablolu sayfa eklerken aynı düzeni kullan.
-- **Kullanıcı kararları (2026-11-23):** Bütün pazaryerleri eşit öncelikli (öne çıkan yok). Sipariş durumları 8'e çıkarılabilir, daha fazlası değil (henüz yapılmadı). İş kuyruğu ve varyant onaylandı ve yapıldı. Barındırma (ücretli plan): şimdilik ücretsiz devam.
+- **Kullanıcı kararları (2026-11-23):** Bütün pazaryerleri eşit öncelikli (öne çıkan yok). Sipariş durumları 8 (yapıldı), daha fazlası değil. İş kuyruğu ve varyant yapıldı. Barındırma (ücretli plan): şimdilik ücretsiz devam.
+- **Kullanıcının gerçek satıcı hesabı yok;** gerçek API testini teyzesi yapacak. Kullanıcı paneli deneme mağazasıyla deniyor.
+- **İkinci paket (deneme mağazası, 8 durum, toplu sipariş, geciken uyarı, iade, giderler, öneriler, güvenlik stoğu, zarar uyarısı, toplu fiyat, CSV):** canlıya alınması için kullanıcı `schema.sql`'i tekrar çalıştırmalı (is_demo, 9e/9f bölümleri, clear_store_data) ve PR'ı birleştirmeli.
+- **Yapılmayanlar / sonraki adaylar:** ekip üyeleri ve roller (mağazaya kullanıcı davet), abonelik ödemesi (iyzico/Stripe; fiyat kararı kullanıcıda), kargo etiketi ve e-fatura (entegratör gerekir), rakip fiyat (yalnızca resmi buybox verisiyle; gerçek hesapla doğrulanmalı), işletme asistanı (sohbet; maliyet nedeniyle en son).
 - **Varyant sınırları:** Hepsiburada, N11, Çiçeksepeti, Pazarama, idefix'te seçenekler ana kodla gruplanır ve başlıkta görünür, ama pazaryerinin kendi varyant özelliği (renk/beden kodu) gönderilmiyor; Etsy'de her seçenek ayrı ilan. Gerçek hesapla doğrulanmalı.
