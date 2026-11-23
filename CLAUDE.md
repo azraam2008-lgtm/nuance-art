@@ -91,9 +91,10 @@ Yerel geliştirme için `.env.example` dosyasını `.env.local` olarak kopyala. 
 - **Büyük `.in()` sorguları:** `.in('id', [...])` ile çok sayıda id gönderince istek başlığı büyüyor ve HTTP 431 dönüyor. Bu sorgular 100'lük parçalara bölünür.
 
 ## Durum ve sıradaki işler
-- **Son büyük değişiklik (2026-11-23, dal `claude/dazzling-euler-vhzfl4`):** çok mağazalı yapı, kayıt, şifre değiştirme/sıfırlama, sipariş durumunun tüm pazaryerlerine gönderimi, tüm pazaryerlerinde kategori araması ve içerik güncelleme, sade kurulum ekranı, galeri/kamera ile fotoğraf, reklam sayfası.
-  - Canlıya almak için kullanıcının yapması gerekenler: (1) Supabase SQL Editor'de `schema.sql`'i yeniden çalıştırmak, (2) Vercel'e `GMAIL_USER` ve `GMAIL_APP_PASSWORD` eklemek, (3) dalı `main`'e almak.
-  - Bu değişiklik sonrası herkes bir kez yeniden giriş yapar (eski oturum çerezinde mağaza bilgisi yok).
+- **Canlıda (2026-11-23, PR azraam2008-lgtm/nuance-art#1 birleştirildi):** çok mağazalı yapı, kayıt, şifre değiştirme/sıfırlama, sipariş durumu gönderimi, kategori araması ve içerik güncelleme, sade kurulum, galeri/kamera fotoğraf, reklam sayfası, telefon uyumu, iş kuyruğu + İşlem Merkezi, zamanlayıcı, varyantlar.
+  - Kullanıcının `schema.sql` ve `zamanlayici.sql`'i çalıştırdığı teyit edilmeli (İşlem Merkezi ve Stok sayfası hatasız açılıyorsa şema tamam).
+  - `GMAIL_USER` ve `GMAIL_APP_PASSWORD` henüz eklenmedi.
+  - Bu ortamdan canlı siteye erişilemiyor (proxy engeli); canlı kontrolü kullanıcı yapıyor.
 - **Doğrulanmamış uç noktalar:** Gerçek API anahtarlarıyla denenip hata mesajlarına göre düzeltilmeli. Kullanıcı gerçek hesaplarla deneyecek.
   - Pazarama, idefix, Koçtaş: adaptörlerin tamamı.
   - Diğerlerinde yeni eklenenler: sipariş durumu gönderimi (özellikle Pazarama durum kodları, idefix yolu, Çiçeksepeti "readyforcargo" uçları, N11 `rest/order/v1/update`) ve kategori listesi uçları (Hepsiburada, N11, Çiçeksepeti, Pazarama, idefix).
@@ -101,5 +102,4 @@ Yerel geliştirme için `.env.example` dosyasını `.env.local` olarak kopyala. 
 - **Sık senkron:** cron-job.org yerine `supabase/zamanlayici.sql` (pg_cron) kullanılacak.
 - **Telefon uyumu (yapıldı):** `lg` altında yan menü soldan açılır çekmece, altta sekme çubuğu (`Shell.tsx`). Tablolu sayfalarda (Ürünler, Stok, Siparişler) `md` altında kart listesi gösterilir; yeni tablolu sayfa eklerken aynı düzeni kullan.
 - **Kullanıcı kararları (2026-11-23):** Bütün pazaryerleri eşit öncelikli (öne çıkan yok). Sipariş durumları 8'e çıkarılabilir, daha fazlası değil (henüz yapılmadı). İş kuyruğu ve varyant onaylandı ve yapıldı. Barındırma (ücretli plan): şimdilik ücretsiz devam.
-- **İş kuyruğu + varyant sürümü için kullanıcının yapacakları:** `schema.sql`'i yeniden çalıştırmak (sync_jobs, system_config, group_code/variant_attrs), ardından `zamanlayici.sql`'i çalıştırmak.
 - **Varyant sınırları:** Hepsiburada, N11, Çiçeksepeti, Pazarama, idefix'te seçenekler ana kodla gruplanır ve başlıkta görünür, ama pazaryerinin kendi varyant özelliği (renk/beden kodu) gönderilmiyor; Etsy'de her seçenek ayrı ilan. Gerçek hesapla doğrulanmalı.
