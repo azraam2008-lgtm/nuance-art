@@ -82,7 +82,7 @@ Yerel geliştirme için `.env.example` dosyasını `.env.local` olarak kopyala. 
 
 ## Canlı ortam
 - **Kod:** GitHub `azraam2008-lgtm/nuance-art`, dal `main`. Her push Vercel'de otomatik yayın başlatır.
-- **Vercel:** takım `aras25`, proje `nuance-art`, Hobby plan. Canlı adres: **https://nuance-art-aras25.vercel.app**
+- **Vercel:** takım `aras25`, proje `nuance-art`, Hobby plan. Canlı adres: **https://ker-van-panel.vercel.app** (eski nuance-art-aras25.vercel.app de çalışıyor)
   - `nuance-xxxx-aras25.vercel.app` gibi yayına özel adresler Vercel Authentication ile korunur; başkalarına bu adresleri gönderme.
 - **Vercel ortam değişkenleri:** Değerler yalnızca Vercel'de durur, buraya yazılmaz. Kullanıcı bazılarını standart dışı adlarla girdi; `next.config.mjs` ve `server.ts` bu adları da tanır.
   - `PUBLIC_SUPABASE_URL` (standart adı `NEXT_PUBLIC_SUPABASE_URL`). `/rest/v1` gibi fazladan bir yol varsa `next.config.mjs` otomatik temizler.
