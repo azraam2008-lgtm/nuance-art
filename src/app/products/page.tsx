@@ -1,4 +1,5 @@
 'use client';
+import { useIsStaff } from '@/components/role';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, Calculator, CheckSquare, Download, FileSpreadsheet, Plus, RefreshCw, Search, Sparkles, Tag, X } from 'lucide-react';
@@ -24,6 +25,7 @@ function StockPill({ p }: { p: Product }) {
 }
 
 export default function ProductsPage() {
+  const staff = useIsStaff();
   const { data, error, loading, reload } = useLiveData<{ products: Product[] }>('/api/products');
   const [importOpen, setImportOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -204,7 +206,7 @@ export default function ProductsPage() {
                               <div className="min-w-0"><div className="font-medium group-hover:text-indigo-700 line-clamp-2">{p.title}{variantText(p.variant_attrs) && <span className="ml-1 inline-block text-[10px] font-medium bg-violet-50 text-violet-700 rounded px-1.5 py-0.5 align-middle">{variantText(p.variant_attrs)}</span>}</div><div className="text-xs text-slate-500 font-mono">{p.sku} · {p.barcode}</div></div>
                             </Link>
                           </td>
-                          <td className="px-4 py-3 text-right whitespace-nowrap"><div>{tl2(p.price)}</div><div className="text-xs text-slate-500">{tl2(p.cost_price)}</div></td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap"><div>{tl2(p.price)}</div>{!staff && <div className="text-xs text-slate-500">{tl2(p.cost_price)}</div>}</td>
                           <td className="px-4 py-3 text-center"><StockPill p={p} /></td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1.5">

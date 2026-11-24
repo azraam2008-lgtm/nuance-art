@@ -1,6 +1,7 @@
 import { handle, HttpError, readJson, requireNumber } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
 import { log, pushStock } from '@/lib/sync/engine';
+import { audit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -15,6 +16,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   const newStock = must(await db().rpc('adjust_stock', { p_product_id: id, p_change: change, p_reason: reason })) as number;
   const p = must(await db().from('products').select('sku').eq('id', id).single()) as { sku: string };
   await log('info', 'stock', null, `${p.sku}: ${reason === 'restock' ? 'stok girişi' : 'stok düzeltme'} ${change > 0 ? '+' : ''}${change} → ${newStock}`);
+  await audit(reason === 'restock' ? 'Stok girişi' : 'Stok düzeltme', `${p.sku}: ${change > 0 ? '+' : ''}${change} → ${newStock}`);
   const sync = await pushStock([id], null);
   return { totalStock: newStock, sync };
 });

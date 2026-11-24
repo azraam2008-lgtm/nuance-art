@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
-import AuthCard from '@/components/AuthCard';
+import AuthCard, { LegalLinks, TermsCheckbox } from '@/components/AuthCard';
 import PasswordInput, { passwordChecks } from '@/components/PasswordInput';
 import { Button, Field, inputClass } from '@/components/ui';
 
@@ -15,6 +15,7 @@ export default function SignupPage() {
   const [password2, setPassword2] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [accept, setAccept] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/status').then((r) => r.json()).then((s) => {
@@ -30,8 +31,9 @@ export default function SignupPage() {
     const bad = passwordChecks(password, f.email).find((c) => !c.ok);
     if (bad) { setError(`Şifre: ${bad.label.toLocaleLowerCase('tr')} olmalı.`); return; }
     if (password !== password2) { setError('Şifreler eşleşmiyor.'); return; }
+    if (!accept) { setError('Devam etmek için kullanım şartlarını ve KVKK aydınlatma metnini onaylayın.'); return; }
     setBusy(true); setError(null);
-    const r = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...f, password }) });
+    const r = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...f, password, acceptTerms: accept }) });
     const d = await r.json().catch(() => ({}));
     setBusy(false);
     if (!r.ok) { setError(d.error ?? 'Hesap oluşturulamadı.'); return; }
@@ -46,10 +48,12 @@ export default function SignupPage() {
         <Field label="E-posta (giriş için)"><input className={inputClass} type="email" required autoComplete="email" value={f.email} onChange={set('email')} /></Field>
         <Field label="Şifre"><PasswordInput value={password} onChange={setPassword} autoComplete="new-password" meter email={f.email} /></Field>
         <Field label="Şifre tekrar"><PasswordInput value={password2} onChange={setPassword2} autoComplete="new-password" /></Field>
+        <TermsCheckbox checked={accept} onChange={setAccept} />
         {error && <div className="text-sm bg-rose-50 text-rose-700 rounded-lg px-3 py-2">{error}</div>}
         <Button type="submit" loading={busy} className="w-full">Hesabı oluştur <ArrowRight className="w-4 h-4" /></Button>
       </form>
       <p className="text-sm text-slate-600 text-center mt-6">Zaten hesabınız var mı? <Link href="/login" className="text-indigo-600 font-medium hover:underline">Giriş yapın</Link></p>
+      <LegalLinks />
     </AuthCard>
   );
 }

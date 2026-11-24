@@ -2,6 +2,8 @@ import { handle, HttpError, readJson } from '@/lib/api';
 import { db } from '@/lib/supabase/server';
 import { log } from '@/lib/sync/engine';
 
+import { audit } from '@/lib/audit';
+
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
@@ -65,5 +67,6 @@ export const POST = handle(async (req: Request) => {
   }
   const added = results.filter((r) => r.ok).length;
   if (added) await log('info', 'system', null, `Excel/CSV'den ${added} ürün stok havuzuna eklendi.`);
+  if (added) await audit('Toplu ürün yükleme', `${added} ürün`);
   return { added, results: results.sort((a, b) => a.line - b.line) };
 });

@@ -1,4 +1,5 @@
 'use client';
+import { useIsStaff } from '@/components/role';
 import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -19,6 +20,7 @@ interface Detail {
 const REASON: Record<string, string> = { sale: 'Satış', cancel: 'İptal iadesi', restock: 'Stok girişi', manual_adjust: 'Düzeltme', initial: 'Açılış' };
 
 export default function ProductDetailPage() {
+  const staff = useIsStaff();
   const { id } = useParams<{ id: string }>();
   const { data, error, loading, reload } = useLiveData<Detail>(`/api/products/${id}`);
   const toast = useToast();
@@ -137,12 +139,12 @@ export default function ProductDetailPage() {
               <div className="space-y-3">
                 <Field label="Ürün adı"><input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
                 <Field label="Açıklama"><textarea className={`${inputClass} min-h-[160px]`} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
-                <div className="grid grid-cols-3 gap-3">
+                {!staff && <div className="grid grid-cols-3 gap-3">
                   <Field label="Satış fiyatı (ortak)"><input className={inputClass} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></Field>
                   <Field label="Liste fiyatı"><input className={inputClass} value={form.listPrice} onChange={(e) => setForm({ ...form, listPrice: e.target.value })} /></Field>
                   <Field label="Maliyet (KDV hariç)"><input className={inputClass} value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} /></Field>
-                </div>
-                {listings.some((l) => l.listing_status !== 'passive') && (
+                </div>}
+                {!staff && listings.some((l) => l.listing_status !== 'passive') && (
                   <div>
                     <div className="text-xs font-medium text-slate-600 mb-1">Pazaryerine özel fiyat (boş = ortak fiyat)</div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -175,7 +177,7 @@ export default function ProductDetailPage() {
                 <div className="text-xs text-slate-500 mt-0.5">{p.brand} · {p.category} · SKU <span className="font-mono">{p.sku}</span> · Barkod <span className="font-mono">{p.barcode}</span> · KDV %{Number(p.vat_rate)} · {Number(p.desi)} desi · Eklenme {fmtDate(p.created_at)}</div>
                 <div className="flex flex-wrap gap-6 mt-3">
                   <div><div className="text-xs text-slate-500">Satış fiyatı</div><div className="text-lg font-semibold">{tl2(p.price)}</div>{p.list_price && Number(p.list_price) > Number(p.price) && <div className="text-xs text-slate-400 line-through">{tl2(p.list_price)}</div>}</div>
-                  <div><div className="text-xs text-slate-500">Maliyet (KDV hariç)</div><div className="text-lg font-semibold">{tl2(p.cost_price)}</div></div>
+                  {!staff && <div><div className="text-xs text-slate-500">Maliyet (KDV hariç)</div><div className="text-lg font-semibold">{tl2(p.cost_price)}</div></div>}
                   <div><div className="text-xs text-slate-500">Son 30 gün satış</div><div className="text-lg font-semibold">{Object.values(data.sales30).reduce((s, x) => s + x.units, 0)} adet</div></div>
                 </div>
                 {p.description && <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 mt-3 max-h-40 overflow-y-auto">{p.description}</pre>}
@@ -236,7 +238,7 @@ export default function ProductDetailPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {listings.map((l) => {
-              const pr = p.profits[l.marketplace_name];
+              const pr = p.profits?.[l.marketplace_name];
               const s = data.sales30[l.marketplace_name];
               return (
                 <Fragment key={l.marketplace_name}>

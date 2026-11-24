@@ -4,6 +4,8 @@ import { isMarketplace, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { profitsFor } from '@/lib/fees/listing-profit';
 import { log, publishProduct, type ProductRow } from '@/lib/sync/engine';
 
+import { audit } from '@/lib/audit';
+
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
@@ -116,5 +118,6 @@ export const POST = handle(async (req: Request) => {
         : { ok: res.ok, status: res.status, message: `${label}${res.message}` };
     }
   }
+  await audit('Ürün eklendi', `${(created as Array<{ sku?: string }>).map((x) => x.sku).filter(Boolean).join(', ').slice(0, 300)}`);
   return { product, products: created, results };
 });

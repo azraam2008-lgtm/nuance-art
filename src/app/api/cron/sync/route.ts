@@ -7,6 +7,8 @@ import { pollOrders, reconcile } from '@/lib/sync/engine';
 import { processDueJobs } from '@/lib/sync/jobs';
 import { refreshFx } from '@/lib/fees/service';
 import { errorMessage } from '@/lib/marketplaces/http';
+import { runNotifications } from '@/lib/notify';
+import { mailConfigured } from '@/lib/auth/mail';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -64,7 +66,16 @@ async function run(req: Request) {
       }
     });
   }
-  return { jobs, stores: stores.length, skipped, results, ms: Date.now() - started, at: new Date().toISOString() };
+  // 3) E-posta bildirimleri (bildirimi açık mağazalar; her mağaza tek e-posta)
+  const notifications: Record<string, unknown> = {};
+  if (mailConfigured()) {
+    const { data: ns } = await rawDb().from('app_settings').select('store_id').eq('key', 'notifications');
+    for (const r of ns ?? []) {
+      if (Date.now() > deadline) break;
+      notifications[r.store_id] = await withStore(r.store_id, () => runNotifications()).catch((e) => ({ error: errorMessage(e) }));
+    }
+  }
+  return { jobs, stores: stores.length, skipped, results, notifications, ms: Date.now() - started, at: new Date().toISOString() };
 }
 
 export const GET = handlePublic(run);

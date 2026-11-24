@@ -3,6 +3,8 @@ import { db, must } from '@/lib/supabase/server';
 import { log, pushStock } from '@/lib/sync/engine';
 import { priceWarnings } from '@/lib/fees/guard';
 
+import { audit } from '@/lib/audit';
+
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
@@ -38,5 +40,6 @@ export const POST = handle(async (req: Request) => {
   }
   await log('info', 'system', null, `Toplu fiyat güncellemesi: ${plan.length} ürün (${mode === 'percent' ? `%${value}` : mode === 'add' ? `${value} ₺` : `${value} ₺ sabit`}).`);
   const sync = await pushStock(plan.map((x) => x.id), null);
+  await audit('Toplu fiyat değişikliği', `${plan.length} ürün`);
   return { plan, warnings, sync };
 });

@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn } from 'lucide-react';
-import AuthCard from '@/components/AuthCard';
+import AuthCard, { LegalLinks } from '@/components/AuthCard';
 import PasswordInput from '@/components/PasswordInput';
 import { Button, Field, inputClass } from '@/components/ui';
 
@@ -48,6 +48,8 @@ function LoginForm() {
         <Button type="submit" loading={busy} className="w-full"><LogIn className="w-4 h-4" /> Giriş yap</Button>
       </form>
       <p className="text-sm text-slate-600 text-center mt-6">Hesabınız yok mu? <Link href="/signup" className="text-indigo-600 font-medium hover:underline">Ücretsiz hesap oluşturun</Link></p>
+      <p className="text-xs text-slate-500 text-center mt-2"><Link href="/welcome" className="hover:underline">Panel neler yapıyor? Tanıtımı görün</Link></p>
+      <LegalLinks />
     </AuthCard>
   );
 }

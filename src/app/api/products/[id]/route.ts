@@ -5,6 +5,8 @@ import { computeOrderCosts } from '@/lib/fees/service';
 import { profitsFor } from '@/lib/fees/listing-profit';
 import { log, pushContent, pushStock, type ProductRow } from '@/lib/sync/engine';
 import { priceWarnings } from '@/lib/fees/guard';
+import { isStaff } from '@/lib/tenant';
+import { audit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -39,6 +41,8 @@ export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: str
 export const PUT = handle(async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
   const b = await readJson<Record<string, unknown>>(req);
+  // Personel fiyat ve maliyeti değiştiremez (bu alanları görmüyor da)
+  if (isStaff()) for (const k of ['price', 'listPrice', 'costPrice', 'priceOverrides', 'vatRate']) delete b[k];
   const before = must(await db().from('products').select('*').eq('id', id).maybeSingle()) as ProductRow | null;
   if (!before) throw new HttpError(404, 'Ürün bulunamadı.');
   const u: Record<string, unknown> = {};
@@ -68,6 +72,8 @@ export const PUT = handle(async (req: Request, ctx: { params: Promise<{ id: stri
 
   const product = must(await db().from('products').select('*').eq('id', id).single()) as ProductRow;
   await log('info', 'system', null, `${product.sku} güncellendi.`);
+  const changes = [u.price !== undefined && Number(u.price) !== Number(before.price) ? `fiyat ${before.price} → ${u.price} ₺` : '', u.cost_price !== undefined && Number(u.cost_price) !== Number(before.cost_price) ? 'maliyet' : '', u.title !== undefined && u.title !== before.title ? 'başlık' : '', u.description !== undefined ? 'açıklama' : '', u.images ? 'görseller' : '', Object.keys(prices).length ? 'pazaryeri fiyatı' : ''].filter(Boolean);
+  await audit('Ürün güncellendi', `${product.sku}${changes.length ? ': ' + changes.join(', ') : ''}`);
 
   // Fiyat ve stok: tüm aktif ilanlara
   const stock = await pushStock([id], null);

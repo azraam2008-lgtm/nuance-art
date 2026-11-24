@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { FlaskConical, KeyRound, LogOut, Save, ShieldCheck, Store, User } from 'lucide-react';
 import { api, useToast } from '@/components/live';
+import TeamSection, { NotifySection } from '@/components/TeamSection';
+import { useRole } from '@/components/role';
 import PasswordInput, { passwordChecks } from '@/components/PasswordInput';
 import { Button, Card, ErrorBox, Field, PageLoader, fmtDate, inputClass } from '@/components/ui';
 
@@ -12,6 +14,7 @@ interface Account {
 }
 
 export default function AccountPage() {
+  const role = useRole();
   const toast = useToast();
   const [data, setData] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +41,7 @@ export default function AccountPage() {
 
   async function saveProfile() {
     setBusy('profile');
-    try { await api('/api/account', { method: 'PATCH', body: profile }); toast('Bilgileriniz kaydedildi.'); await load(); }
+    try { await api('/api/account', { method: 'PATCH', body: role === 'staff' ? { name: profile.name } : profile }); toast('Bilgileriniz kaydedildi.'); await load(); }
     catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(null); }
   }
 
@@ -73,7 +76,7 @@ export default function AccountPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Adınız soyadınız"><input className={inputClass} value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></Field>
           <Field label="E-posta (giriş)" hint="E-posta adresi değiştirilemez."><input className={`${inputClass} bg-slate-50`} value={data.user.email} disabled /></Field>
-          <div className="sm:col-span-2"><Field label="Mağaza adı"><div className="relative"><Store className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className={`${inputClass} pl-9`} value={profile.storeName} onChange={(e) => setProfile({ ...profile, storeName: e.target.value })} /></div></Field></div>
+          {role !== 'staff' && <div className="sm:col-span-2"><Field label="Mağaza adı"><div className="relative"><Store className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className={`${inputClass} pl-9`} value={profile.storeName} onChange={(e) => setProfile({ ...profile, storeName: e.target.value })} /></div></Field></div>}
         </div>
         <div className="flex justify-end"><Button loading={busy === 'profile'} onClick={saveProfile}><Save className="w-4 h-4" /> Kaydet</Button></div>
       </Card>
@@ -89,7 +92,10 @@ export default function AccountPage() {
         </form>
       </Card>
 
-      <Card className="p-6 space-y-3">
+      <TeamSection />
+      {role !== 'staff' && <NotifySection />}
+
+      {role === 'owner' && <Card className="p-6 space-y-3">
         <h2 className="font-semibold flex items-center gap-2"><FlaskConical className="w-4 h-4" /> Deneme mağazası</h2>
         {demo ? (
           <>
@@ -102,7 +108,7 @@ export default function AccountPage() {
             <Button variant="secondary" loading={busy === 'demo'} disabled={demo === null} onClick={() => toggleDemo(true)}><FlaskConical className="w-4 h-4" /> Deneme mağazasını aç</Button>
           </>
         )}
-      </Card>
+      </Card>}
 
       <Card className="p-6 space-y-3">
         <h2 className="font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Güvenlik</h2>

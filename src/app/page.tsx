@@ -1,4 +1,5 @@
 'use client';
+import { useIsStaff } from '@/components/role';
 import Link from 'next/link';
 import { useState } from 'react';
 import { AlertTriangle, PackagePlus, PiggyBank, ShoppingCart, Trophy, Wallet } from 'lucide-react';
@@ -22,6 +23,7 @@ interface Dashboard {
 const compact = (v: number) => new Intl.NumberFormat('tr-TR', { notation: 'compact', maximumFractionDigits: 1 }).format(v) + ' ₺';
 
 export default function DashboardPage() {
+  const staff = useIsStaff();
   const { data, error, loading, reload } = useLiveData<Dashboard>('/api/dashboard');
   const [range, setRange] = useState<'monthly' | 'daily'>('monthly');
   if (loading) return <PageLoader />;
@@ -58,8 +60,8 @@ export default function DashboardPage() {
       )}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         <Kpi icon={<Wallet className="w-4 h-4" />} accent="bg-indigo-50 text-indigo-600" label="Bu Ayki Toplam Ciro" value={tl(kpis.monthRevenue)} sub={monthName} />
-        <Link href="/profit" className="block h-full"><Kpi icon={<PiggyBank className="w-4 h-4" />} accent={kpis.monthNetProfit < 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'} label="Bu Ayki Net Kâr"
-          value={tl(kpis.monthNetProfit)} sub={kpis.monthRevenue ? `Marj ~%${((kpis.monthNetProfit / (kpis.monthRevenue / 1.2)) * 100).toFixed(1)} · ${kpis.monthEstimates} tahmini` : 'Komisyon, kargo, bedeller sonrası'} /></Link>
+        {!staff && <Link href="/profit" className="block h-full"><Kpi icon={<PiggyBank className="w-4 h-4" />} accent={kpis.monthNetProfit < 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'} label="Bu Ayki Net Kâr"
+          value={tl(kpis.monthNetProfit)} sub={kpis.monthRevenue ? `Marj ~%${((kpis.monthNetProfit / (kpis.monthRevenue / 1.2)) * 100).toFixed(1)} · ${kpis.monthEstimates} tahmini` : 'Komisyon, kargo, bedeller sonrası'} /></Link>}
         <Kpi icon={<ShoppingCart className="w-4 h-4" />} accent="bg-blue-50 text-blue-600" label="Toplam Sipariş Sayısı" value={kpis.monthOrders.toLocaleString('tr-TR')} sub="Bu ay, iptaller hariç" />
         <Kpi icon={<Trophy className="w-4 h-4" />} accent="bg-orange-50 text-orange-600" label="En Çok Satan Pazaryeri"
           value={kpis.topMarketplace ? MARKETPLACE_META[kpis.topMarketplace].label : '—'} sub={kpis.topMarketplace ? `${tl(kpis.topMarketplaceRevenue)} bu ay` : 'Bu ay satış yok'} />
