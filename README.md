@@ -1,4 +1,4 @@
-# Nuance Art — Pazaryeri Yönetim Paneli
+# Kervan — Pazaryeri Yönetim Paneli
 
 Trendyol, Hepsiburada, N11, Çiçeksepeti, Pazarama, idefix, Koçtaş ve Etsy için tek panelden **ürün, ortak stok, sipariş ve kârlılık** yönetimi.
 
@@ -111,7 +111,7 @@ nuance-art/
    | Değişken | Açıklama |
    |---|---|
    | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API |
-   | `APP_URL` | Panelin adresi (ör. `https://panel.nuanceart.com`). Etsy dönüş adresi bundan üretilir. |
+   | `APP_URL` | Panelin adresi (ör. `https://panel.ornek.com`). Etsy dönüş adresi bundan üretilir. |
    | `SESSION_SECRET` | Oturum imza anahtarı — rastgele 32+ karakter |
    | `CREDENTIALS_ENCRYPTION_KEY` | API Secret şifreleme anahtarı (32 bayt base64) |
    | `CRON_SECRET`, `WEBHOOK_SECRET` | Zamanlanmış görev ve webhook koruması |

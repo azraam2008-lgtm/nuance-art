@@ -20,7 +20,7 @@ export class N11Adapter implements MarketplaceAdapter {
   }
 
   private get headers() { return { appkey: this.c.apiKey, appsecret: this.c.apiSecret }; }
-  private get integrator() { return str(this.c.extra.integratorName) || 'NuanceArt'; }
+  private get integrator() { return str(this.c.extra.integratorName) || 'Kervan'; }
 
   async testConnection(): Promise<AdapterResult> {
     try {

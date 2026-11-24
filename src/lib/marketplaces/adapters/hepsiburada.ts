@@ -27,7 +27,7 @@ export class HepsiburadaAdapter implements MarketplaceAdapter {
   }
 
   private get headers() {
-    return { Authorization: basicAuth(this.c.sellerId, this.c.apiSecret), 'User-Agent': this.c.apiKey || 'NuanceArt' };
+    return { Authorization: basicAuth(this.c.sellerId, this.c.apiSecret), 'User-Agent': this.c.apiKey || 'Kervan' };
   }
   private get mid() { return encodeURIComponent(this.c.sellerId); }
 

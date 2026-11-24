@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Activity, Boxes, Lightbulb, ListChecks, Receipt, Calculator, LayoutDashboard, LogOut, Megaphone, Menu, Package, Plus, PlusCircle, Scale, Settings, ShoppingCart, TrendingUp, UserCog, X, Zap, Radio } from 'lucide-react';
-import { BrandMark } from './Brand';
+import { StoreMark } from './Brand';
+import { BRAND } from '@/lib/brand';
 import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { LiveProvider, ToastProvider, api, useLive, useLiveData, useToast } from './live';
 import { Button, MarketplaceBadge, cx } from './ui';
@@ -38,6 +39,10 @@ export default function Shell({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => { setMenuOpen(false); }, [path]);
+  // Giriş yapınca tarayıcı sekmesinde de firmanın adı görünür
+  useEffect(() => {
+    if (!bare && status?.user) document.title = status.companyName || 'Mağazam';
+  }, [bare, status, path]);
 
   useEffect(() => {
     if (bare) return;
@@ -140,10 +145,10 @@ function Sidebar({ status, onClose }: { status: Status; onClose?: () => void }) 
   return (
     <aside className="w-64 lg:w-60 shrink-0 bg-slate-900 text-slate-300 flex flex-col h-full overflow-y-auto">
       <div className="px-5 py-5 border-b border-slate-800 flex items-center gap-3">
-        <BrandMark size={34} />
+        <StoreMark name={status.companyName || 'Mağazam'} size={34} />
         <div className="leading-tight min-w-0">
           <div className="text-white font-semibold truncate">{status.companyName || 'Mağazam'}</div>
-          <div className="text-xs text-slate-400 truncate">Pazaryeri Yönetim Paneli</div>
+          <div className="text-[11px] text-slate-500 truncate">{BRAND.name} ile yönetiliyor</div>
         </div>
         {onClose && <button onClick={onClose} className="ml-auto p-1.5 rounded hover:bg-slate-800" aria-label="Menüyü kapat"><X className="w-5 h-5" /></button>}
       </div>

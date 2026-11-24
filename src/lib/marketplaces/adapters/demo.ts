@@ -51,7 +51,7 @@ export class DemoAdapter implements MarketplaceAdapter {
   async fetchProducts(page: number): Promise<RemoteProduct[]> {
     await wait(300, 700);
     if (page > 0) return [];
-    const base = { description: '', brand: 'NuanceArt', vatRate: 20, costPrice: 0, images: [] as string[], attributes: {} };
+    const base = { description: '', brand: 'Örnek Atölye', vatRate: 20, costPrice: 0, images: [] as string[], attributes: {} };
     return [
       { ...base, externalId: 'TY-88112', sku: 'JUT-301', barcode: '8690000001100', title: 'Pamuklu Jüt Kurdele 1 cm x 25 m - Natürel', category: 'Hediye Paketleme', price: 69.9, listPrice: 84.9, stock: 80, costPrice: 22 },
       { ...base, externalId: 'TY-88140', sku: 'MKR-015', barcode: '8690000001117', title: 'Makrome Duvar Süsü - Küçük Boy', category: 'Ev Dekorasyon', price: 249.9, listPrice: 299.9, stock: 30, costPrice: 95 },
