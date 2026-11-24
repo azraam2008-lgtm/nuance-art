@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/fees.test.ts && tsx tests/rates.test.ts && tsx --conditions=react-server tests/tenant.test.ts && tsx --conditions=react-server tests/password.test.ts && tsx --conditions=react-server tests/jobs.test.ts && tsx tests/expenses.test.ts && tsx tests/insights.test.ts && tsx --conditions=react-server tests/roles.test.ts"
+    "test": "tsx tests/fees.test.ts && tsx tests/rates.test.ts && tsx --conditions=react-server tests/tenant.test.ts && tsx --conditions=react-server tests/password.test.ts && tsx --conditions=react-server tests/jobs.test.ts && tsx tests/expenses.test.ts && tsx tests/insights.test.ts && tsx --conditions=react-server tests/roles.test.ts && tsx tests/shipping.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",

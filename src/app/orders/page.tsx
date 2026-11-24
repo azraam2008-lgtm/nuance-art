@@ -1,7 +1,7 @@
 'use client';
 import { useIsStaff } from '@/components/role';
 import { useEffect, useState } from 'react';
-import { AlarmClock, CheckSquare, ChevronLeft, ChevronRight, Search, Truck, X } from 'lucide-react';
+import { AlarmClock, CheckSquare, ChevronLeft, ChevronRight, Printer, Search, Truck, X } from 'lucide-react';
 import CostBreakdown, { ProfitBadge } from '@/components/CostBreakdown';
 import { MARKETPLACES, MARKETPLACE_META, ORDER_STATUSES, ORDER_STATUS_META, RETURN_REASONS, isClosedStatus, type OrderStatus } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
@@ -188,6 +188,7 @@ export default function OrdersPage() {
             <option value="">Toplu durum değiştir…</option>
             {ORDER_STATUSES.filter((s) => s !== 'new').map((s) => <option key={s} value={s}>{ORDER_STATUS_META[s].label}</option>)}
           </select>
+          <Button variant="secondary" onClick={() => window.open(`/orders/labels?ids=${chosen.map((o) => o.id).join(',')}`, '_blank')}><Printer className="w-4 h-4" /> Kargo etiketi yazdır</Button>
           <Button onClick={() => ask(chosen, 'shipped')}><Truck className="w-4 h-4" /> Kargoya verildi</Button>
           <button onClick={() => setSelected(new Set())} className="p-2 text-slate-500" aria-label="Seçimi temizle"><X className="w-4 h-4" /></button>
         </Card>
@@ -227,9 +228,10 @@ export default function OrdersPage() {
                   {!staff && <button onClick={() => setDetail(o.id)} className="text-xs"><ProfitBadge value={costOf(o)?.net_profit} status={costOf(o)?.status} /></button>}
                   <span className="flex-1" />
                   <StatusSelect o={o} className="py-1.5" />
-                  {!o.shipped_at && !isClosedStatus(o.status) && (
+                  {!o.shipped_at && !isClosedStatus(o.status) && (<>
+                    <a href={`/orders/labels?ids=${o.id}`} target="_blank" rel="noreferrer" className="p-2 rounded-md bg-slate-100 text-slate-600" aria-label="Kargo etiketi yazdır"><Printer className="w-4 h-4" /></a>
                     <button onClick={() => ask([o], 'shipped')} className="p-2 rounded-md bg-indigo-50 text-indigo-700" aria-label="Kargoya verildi"><Truck className="w-4 h-4" /></button>
-                  )}
+                  </>)}
                 </div>
               </Card>
             ))}
@@ -268,9 +270,10 @@ export default function OrdersPage() {
                       <td className="px-3 py-3"><StatusSelect o={o} /></td>
                       <td className="px-3 py-3 text-xs text-slate-500 whitespace-nowrap">{fmtDate(o.order_date)}</td>
                       <td className="px-2 py-3">
-                        {!o.shipped_at && !isClosedStatus(o.status) && (
+                        {!o.shipped_at && !isClosedStatus(o.status) && (<span className="inline-flex">
+                          <a href={`/orders/labels?ids=${o.id}`} target="_blank" rel="noreferrer" title="Kargo etiketi yazdır" className="inline-flex p-1.5 rounded-md text-slate-500 hover:bg-slate-100"><Printer className="w-4 h-4" /></a>
                           <button onClick={() => ask([o], 'shipped')} title="Kargoya verildi olarak işaretle" className="p-1.5 rounded-md text-slate-500 hover:bg-indigo-50 hover:text-indigo-700"><Truck className="w-4 h-4" /></button>
-                        )}
+                        </span>)}
                       </td>
                     </tr>
                   ))}
