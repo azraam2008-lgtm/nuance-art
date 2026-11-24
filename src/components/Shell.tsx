@@ -26,7 +26,7 @@ const NAV = [
   { href: '/settings', label: 'API Bağlantıları', icon: Settings },
   { href: '/account', label: 'Hesabım', icon: UserCog },
 ];
-const BARE = ['/login', '/setup', '/signup', '/forgot', '/reset', '/onboarding', '/invite', '/welcome', '/legal/terms', '/legal/privacy', '/legal/kvkk'];
+const BARE = ['/orders/labels', '/login', '/setup', '/signup', '/forgot', '/reset', '/onboarding', '/invite', '/welcome', '/legal/terms', '/legal/privacy', '/legal/kvkk'];
 const isActive = (path: string, n: { href: string; exact?: boolean }) =>
   n.href === '/' ? path === '/' : n.exact ? path === n.href : path.startsWith(n.href) && !(n.href === '/products' && path === '/products/new');
 
