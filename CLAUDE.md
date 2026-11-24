@@ -1,4 +1,4 @@
-# Nuance Art — proje notları (Claude için)
+# Kervan (eski adı Nuance Art) — proje notları (Claude için)
 
 Bu dosya, projenin claude.ai sohbetinde yapılan işin özetidir. Yeni bir oturumda kaldığın yerden devam etmek için önce bunu oku.
 
@@ -30,6 +30,7 @@ Bu dosya, projenin claude.ai sohbetinde yapılan işin özetidir. Yeni bir oturu
 - **İşlem kaydı:** `audit(action, detail)` (`src/lib/audit.ts`) → `audit_log`; Hesabım → "Son işlemler".
 - **E-posta bildirimleri:** `src/lib/notify.ts` (`app_settings.notifications` + `notify_state`), cron her mağaza için tek özet e-posta; günlük özet 08:00 sonrası. Gmail ayarlı değilse çalışmaz.
 - **Yasal ve tanıtım:** `/legal/terms|privacy|kvkk` (`src/lib/legal-texts.ts`, TASLAK — köşeli parantezli alanlar doldurulmalı, hukukçu kontrolü gerekli), kayıtta onay kutusu (`terms_accepted_at`, `TERMS_VERSION`). Giriş yapmamış kişi `/` → `/welcome`.
+- **Ürün adı:** "Kervan" (2026-11-24 kullanıcı seçti), tek yerde `src/lib/brand.ts`. Giriş, tanıtım, yasal sayfalar ve e-postalarda görünür. Panelin içinde (yan menü, sekme başlığı) her kullanıcı kendi mağaza adını ve baş harf logosunu (`StoreMark`) görür. Depo ve Vercel proje adı hâlâ `nuance-art` olabilir.
 - **Demo modu yok.** Yalnızca `DEMO_MODE=true` ortam değişkeni verilirse çalışır.
 
 ## Geliştirme standardı (kullanıcının ana talimatı, 2026-11-23)

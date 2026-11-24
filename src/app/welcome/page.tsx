@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { ArrowRight, Bell, Boxes, Calculator, FlaskConical, Lightbulb, ListChecks, ShoppingCart, Smartphone, Users } from 'lucide-react';
 import { BrandMark, BrandName } from '@/components/Brand';
+import { BRAND } from '@/lib/brand';
 
-export const metadata = { title: 'Pazaryeri Yönetim Paneli — tüm pazaryerleri tek ekranda' };
+export const metadata = { title: `${BRAND.name} — ${BRAND.tagline}` };
 
 const MARKETS = ['Trendyol', 'Hepsiburada', 'N11', 'Çiçeksepeti', 'Pazarama', 'idefix', 'Koçtaş', 'Etsy'];
 
@@ -37,8 +38,8 @@ export default function WelcomePage() {
 
       <section className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
         <div className="max-w-6xl mx-auto px-4 py-14 sm:py-20">
-          <h1 className="text-3xl sm:text-5xl font-bold leading-tight max-w-3xl">Bütün pazaryeri mağazalarınız <span className="text-amber-300">tek ekranda.</span></h1>
-          <p className="mt-4 text-slate-300 max-w-2xl text-base sm:text-lg">Ürün, stok, sipariş ve kârınızı tek panelden yönetin. Bir yerde satış olunca stok her yerde düşsün; her siparişte gerçekten ne kazandığınızı görün.</p>
+          <h1 className="text-3xl sm:text-5xl font-bold leading-tight max-w-3xl">Tüm pazarlarınız <span className="text-amber-300">tek kervanda.</span></h1>
+          <p className="mt-4 text-slate-300 max-w-2xl text-base sm:text-lg">Trendyol'dan Etsy'ye, ürün, stok, sipariş ve kârınızı tek panelden yönetin. Bir yerde satış olunca stok her yerde düşsün; her siparişte gerçekten ne kazandığınızı görün.</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/signup" className="inline-flex items-center gap-2 rounded-lg bg-amber-400 text-slate-900 font-semibold px-5 py-3">Ücretsiz hesap aç <ArrowRight className="w-4 h-4" /></Link>
             <Link href="/login" className="inline-flex items-center gap-2 rounded-lg border border-slate-600 px-5 py-3 hover:bg-slate-800">Giriş yap</Link>
@@ -89,7 +90,7 @@ export default function WelcomePage() {
 
       <footer className="border-t border-slate-200">
         <div className="max-w-6xl mx-auto px-4 py-6 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
-          <span>© {new Date().getFullYear()} Pazaryeri Yönetim Paneli</span>
+          <span>© {new Date().getFullYear()} {BRAND.name}</span>
           <Link href="/legal/terms" className="hover:text-slate-800">Kullanım şartları</Link>
           <Link href="/legal/privacy" className="hover:text-slate-800">Gizlilik</Link>
           <Link href="/legal/kvkk" className="hover:text-slate-800">KVKK aydınlatma</Link>
