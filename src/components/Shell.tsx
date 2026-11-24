@@ -1,4 +1,5 @@
 'use client';
+import { RoleProvider, STAFF_HIDDEN, type Role } from '@/components/role';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -24,11 +25,11 @@ const NAV = [
   { href: '/settings', label: 'API Bağlantıları', icon: Settings },
   { href: '/account', label: 'Hesabım', icon: UserCog },
 ];
-const BARE = ['/login', '/setup', '/signup', '/forgot', '/reset', '/onboarding'];
+const BARE = ['/login', '/setup', '/signup', '/forgot', '/reset', '/onboarding', '/invite', '/welcome', '/legal/terms', '/legal/privacy', '/legal/kvkk'];
 const isActive = (path: string, n: { href: string; exact?: boolean }) =>
   n.href === '/' ? path === '/' : n.exact ? path === n.href : path.startsWith(n.href) && !(n.href === '/products' && path === '/products/new');
 
-interface Status { user: { email: string; name: string } | null; onboarded: boolean; companyName: string | null; demoMode: boolean }
+interface Status { user: { email: string; name: string; role?: string } | null; onboarded: boolean; companyName: string | null; demoMode: boolean }
 
 export default function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
@@ -63,6 +64,7 @@ export default function Shell({ children }: { children: ReactNode }) {
   }
   return (
     <ToastProvider>
+      <RoleProvider value={roleOf(status)}>
       <LiveProvider>
         <div className="flex min-h-screen">
           {/* Masaüstü: sabit yan menü */}
@@ -90,9 +92,12 @@ export default function Shell({ children }: { children: ReactNode }) {
           <BottomNav onMenu={() => setMenuOpen(true)} />
         </div>
       </LiveProvider>
+      </RoleProvider>
     </ToastProvider>
   );
 }
+
+const roleOf = (s: Status | null): Role => (s?.user?.role === 'staff' || s?.user?.role === 'admin' ? s.user.role : 'owner');
 
 /** Telefonda alt sekme çubuğu: en sık kullanılan ekranlar tek dokunuşla */
 function BottomNav({ onMenu }: { onMenu: () => void }) {
@@ -143,7 +148,7 @@ function Sidebar({ status, onClose }: { status: Status; onClose?: () => void }) 
         {onClose && <button onClick={onClose} className="ml-auto p-1.5 rounded hover:bg-slate-800" aria-label="Menüyü kapat"><X className="w-5 h-5" /></button>}
       </div>
       <nav className="flex-1 p-3 space-y-1">
-        {NAV.map((n) => {
+        {NAV.filter((n) => roleOf(status) !== 'staff' || !STAFF_HIDDEN.includes(n.href)).map((n) => {
           const active = isActive(path, n);
           const Icon = n.icon;
           return (

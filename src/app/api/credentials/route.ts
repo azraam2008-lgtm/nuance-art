@@ -5,6 +5,7 @@ import { isMarketplace, MARKETPLACE_META, MARKETPLACES } from '@/lib/marketplace
 import { GUIDES, hasRequiredKeys } from '@/lib/marketplaces/guides';
 import { log } from '@/lib/sync/engine';
 import { isDemoStore } from '@/lib/demo';
+import { audit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,5 +68,6 @@ export const PUT = handle(async (req: Request) => {
   }
   must(await db().from('marketplace_credentials').upsert(update, { onConflict: 'marketplace_name' }).select('id'));
   await log('info', 'system', b.marketplace, `API ayarları güncellendi (${update.is_active ? 'bağlı' : 'bağlantı kapalı'}).`);
+  await audit('API bağlantısı değişti', `${MARKETPLACE_META[b.marketplace].label}${update.is_active ? ' (açık)' : ' (kapalı)'}`);
   return { ok: true };
 });

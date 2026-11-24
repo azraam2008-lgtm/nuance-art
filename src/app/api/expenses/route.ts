@@ -2,6 +2,8 @@ import { handle, HttpError, istanbulDate, readJson } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
 import { EXPENSE_CATEGORIES, expenseShare, type ExpenseRow } from '@/lib/finance/expenses';
 
+import { audit } from '@/lib/audit';
+
 export const dynamic = 'force-dynamic';
 
 /** İşletme giderleri: liste + seçili aralıktaki (varsayılan bu ay) kategori toplamları */
@@ -30,6 +32,7 @@ export const POST = handle(async (req: Request) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, 'Tarih seçin.');
   const end = b.endDate && /^\d{4}-\d{2}-\d{2}$/.test(b.endDate) ? b.endDate : null;
   const category = (EXPENSE_CATEGORIES as readonly string[]).includes(String(b.category)) ? String(b.category) : 'Diğer';
+  await audit('Gider eklendi', `${category}: ${amount} ₺${b.monthly ? ' / ay' : ''}`);
   return must(await db().from('expenses').insert({ category, amount, expense_date: date, monthly: !!b.monthly, end_date: b.monthly ? end : null, note: String(b.note ?? '').slice(0, 200) }).select('id').single());
 });
 

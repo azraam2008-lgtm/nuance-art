@@ -1,4 +1,5 @@
 'use client';
+import { useIsStaff } from '@/components/role';
 import { useEffect, useState } from 'react';
 import { AlarmClock, CheckSquare, ChevronLeft, ChevronRight, Search, Truck, X } from 'lucide-react';
 import CostBreakdown, { ProfitBadge } from '@/components/CostBreakdown';
@@ -23,6 +24,7 @@ const isLate = (o: Order) => !o.shipped_at && !isClosedStatus(o.status) && o.sta
 type Pending = { orders: Order[]; status: OrderStatus } | null;
 
 export default function OrdersPage() {
+  const staff = useIsStaff();
   const [marketplace, setMarketplace] = useState('');
   const [status, setStatus] = useState('');
   const [late, setLate] = useState(false);
@@ -222,7 +224,7 @@ export default function OrdersPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold tabular-nums">{tl2(o.total_amount)}</span>
-                  <button onClick={() => setDetail(o.id)} className="text-xs"><ProfitBadge value={costOf(o)?.net_profit} status={costOf(o)?.status} /></button>
+                  {!staff && <button onClick={() => setDetail(o.id)} className="text-xs"><ProfitBadge value={costOf(o)?.net_profit} status={costOf(o)?.status} /></button>}
                   <span className="flex-1" />
                   <StatusSelect o={o} className="py-1.5" />
                   {!o.shipped_at && !isClosedStatus(o.status) && (
@@ -258,7 +260,7 @@ export default function OrdersPage() {
                       <td className="px-3 py-3 text-right">{o.items.reduce((s, i) => s + i.quantity, 0)}</td>
                       <td className="px-3 py-3 text-right font-medium">{tl2(o.total_amount)}</td>
                       <td className="px-3 py-3 text-right">
-                        <button onClick={() => setDetail(o.id)} className="hover:underline" title="Maliyet dökümü">
+                        <button onClick={() => !staff && setDetail(o.id)} className="hover:underline" title="Maliyet dökümü">
                           <ProfitBadge value={costOf(o)?.net_profit} status={costOf(o)?.status} />
                         </button>
                         {costOf(o)?.same_day_eligible && costOf(o)?.same_day_met === false && <div className="text-[10px] text-rose-600">aynı gün kaçtı</div>}

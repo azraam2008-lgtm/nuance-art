@@ -2,6 +2,7 @@ import { handle, HttpError, readJson } from '@/lib/api';
 import { isOrderStatus } from '@/lib/marketplaces/meta';
 import { changeOrderStatus, markShipped, type RemoteStatusResult } from '@/lib/sync/engine';
 import { errorMessage } from '@/lib/marketplaces/http';
+import { audit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -27,5 +28,7 @@ export const POST = handle(async (req: Request) => {
       results.push({ id, ok: false, message: errorMessage(e) });
     }
   }
+  const okCount = results.filter((r) => r.ok).length;
+  if (okCount) await audit('Toplu sipariş işlemi', `${okCount} sipariş → ${b.action === 'ship' ? 'kargoya verildi' : b.status}`);
   return { results };
 });

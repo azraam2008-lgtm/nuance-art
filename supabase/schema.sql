@@ -573,6 +573,43 @@ create index if not exists idx_expenses_store on expenses(store_id, expense_date
 alter table expenses enable row level security;
 
 -- =====================================================================
+-- 9g) EKİP ÜYELERİ, DAVETLER ve İŞLEM KAYDI
+--  Bir mağazaya birden fazla kullanıcı: owner (sahip), admin (yönetici), staff (personel).
+--  Davet bağlantısının yalnızca özeti saklanır; 7 gün geçerli, tek kullanımlık.
+-- =====================================================================
+create table if not exists invites (
+  id          uuid primary key default gen_random_uuid(),
+  store_id    uuid not null references stores(id) on delete cascade,
+  email       text not null,
+  role        text not null check (role in ('admin','staff')),
+  token_hash  text not null unique,
+  invited_by  uuid references app_users(id) on delete set null,
+  expires_at  timestamptz not null,
+  accepted_at timestamptz,
+  revoked_at  timestamptz,
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_invites_store on invites(store_id, created_at desc);
+alter table invites enable row level security;
+
+-- Kim ne yaptı (sipariş durumu, stok, fiyat, ürün, ekip, bağlantı değişiklikleri)
+create table if not exists audit_log (
+  id          bigserial primary key,
+  store_id    uuid not null references stores(id) on delete cascade,
+  user_id     uuid references app_users(id) on delete set null,
+  user_name   text not null default '',
+  action      text not null,
+  detail      text not null default '',
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_audit_store on audit_log(store_id, created_at desc);
+alter table audit_log enable row level security;
+
+-- Kullanım şartları / KVKK aydınlatma metni onayı (kayıtta)
+alter table app_users add column if not exists terms_accepted_at timestamptz;
+alter table app_users add column if not exists terms_version text;
+
+-- =====================================================================
 -- FONKSİYONLAR
 -- =====================================================================
 
@@ -845,6 +882,7 @@ begin
   delete from marketplace_listings where store_id = p_store_id; delete from products where store_id = p_store_id;
   delete from sync_logs where store_id = p_store_id; delete from sync_jobs where store_id = p_store_id;
   delete from ad_spend where store_id = p_store_id; delete from expenses where store_id = p_store_id;
+  delete from audit_log where store_id = p_store_id;
 end $$;
 
 drop function if exists seed_demo_data();

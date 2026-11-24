@@ -23,7 +23,7 @@ export function rawDb(): SupabaseClient {
 /** Her satırı bir mağazaya ait olan tablolar ve görünümler */
 const TENANT_TABLES = new Set([
   'products', 'marketplace_listings', 'orders', 'order_items', 'stock_movements', 'marketplace_credentials',
-  'sync_logs', 'fee_rules', 'carrier_rates', 'app_settings', 'order_costs', 'ad_spend', 'sync_jobs', 'expenses',
+  'sync_logs', 'fee_rules', 'carrier_rates', 'app_settings', 'order_costs', 'ad_spend', 'sync_jobs', 'expenses', 'audit_log', 'invites',
   'v_stock_breakdown', 'v_daily_revenue',
 ]);
 /** Mağaza parametresi (p_store_id) alan SQL fonksiyonları */

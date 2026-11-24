@@ -1,4 +1,4 @@
-import { handle, HttpError, readJson } from '@/lib/api';
+import { handle, HttpError, readJson, requireRole } from '@/lib/api';
 import { db, rawDb, must } from '@/lib/supabase/server';
 import { currentStoreId, currentUserId } from '@/lib/tenant';
 import { mailConfigured } from '@/lib/auth/mail';
@@ -21,6 +21,7 @@ export const PATCH = handle(async (req: Request) => {
     must(await rawDb().from('app_users').update({ name }).eq('id', currentUserId()).select('id'));
   }
   if (b.storeName !== undefined) {
+    requireRole('admin');
     const storeName = String(b.storeName).trim().slice(0, 120);
     if (!storeName) throw new HttpError(400, 'Mağaza adını girin.');
     must(await rawDb().from('stores').update({ name: storeName }).eq('id', currentStoreId()).select('id'));
