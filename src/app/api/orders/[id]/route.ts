@@ -3,6 +3,7 @@ import { isOrderStatus } from '@/lib/marketplaces/meta';
 import { changeOrderStatus } from '@/lib/sync/engine';
 import { ORDER_STATUS_META } from '@/lib/marketplaces/meta';
 import { audit, orderNo } from '@/lib/audit';
+import { autoQueueOnShip } from '@/lib/invoicing/service';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -16,6 +17,7 @@ export const PATCH = handle(async (req: Request, ctx: { params: Promise<{ id: st
   try {
     const r = await changeOrderStatus(id, b.status, { trackingNumber: clean(b.trackingNumber), carrier: clean(b.carrier), invoiceNumber: clean(b.invoiceNumber), returnReason: clean(b.returnReason) });
     await audit('Sipariş durumu', `${await orderNo(id)} → ${ORDER_STATUS_META[b.status]?.label ?? b.status}`);
+    if (b.status === 'shipped') await autoQueueOnShip(id);
     return r;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

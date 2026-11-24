@@ -1,8 +1,9 @@
 'use client';
 import { useIsStaff } from '@/components/role';
 import { useEffect, useState } from 'react';
-import { AlarmClock, CheckSquare, ChevronLeft, ChevronRight, Printer, Search, Truck, X } from 'lucide-react';
+import { AlarmClock, CheckSquare, ChevronLeft, ChevronRight, FileText, Printer, Search, Truck, X } from 'lucide-react';
 import CostBreakdown, { ProfitBadge } from '@/components/CostBreakdown';
+import InvoiceModal from '@/components/InvoiceModal';
 import { MARKETPLACES, MARKETPLACE_META, ORDER_STATUSES, ORDER_STATUS_META, RETURN_REASONS, isClosedStatus, type OrderStatus } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Empty, ErrorBox, Field, MarketplaceBadge, Modal, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
@@ -13,7 +14,10 @@ interface Order {
   shipped_at: string | null; tracking_number?: string | null; invoice_number?: string | null; return_reason?: string | null;
   items: Array<{ sku: string; product_title: string; quantity: number; unit_price: number }>;
   cost: Cost | Cost[] | null;
+  invoice?: Inv | Inv[] | null;
 }
+type Inv = { status: string; invoice_number: string | null; last_error: string | null };
+const invOf = (o: Order) => (Array.isArray(o.invoice) ? o.invoice[0] : o.invoice) ?? null;
 type Remote = { ok: boolean; message: string; unsupported?: boolean } | undefined;
 const costOf = (o: Order) => (Array.isArray(o.cost) ? o.cost[0] : o.cost) ?? null;
 const no = (o: Order) => o.external_order_id.split('/')[0];
@@ -32,6 +36,7 @@ export default function OrdersPage() {
   const [debounced, setDebounced] = useState('');
   const [page, setPage] = useState(0);
   const [detail, setDetail] = useState<string | null>(null);
+  const [invoiceFor, setInvoiceFor] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<Pending>(null);
   const [form, setForm] = useState({ trackingNumber: '', carrier: '', invoiceNumber: '', returnReason: RETURN_REASONS[0] as string, note: '' });
@@ -55,6 +60,18 @@ export default function OrdersPage() {
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
   const orders = data?.orders ?? [];
   const chosen = orders.filter((o) => selected.has(o.id));
+
+  async function issueInvoices() {
+    setBusy(true);
+    try {
+      const r = await api<{ results: Array<{ orderId: string; ok: boolean; message: string }> }>('/api/invoices', { method: 'POST', body: { action: 'issue', ids: chosen.map((o) => o.id) } });
+      const ok = r.results.filter((x) => x.ok).length;
+      const bad = r.results.filter((x) => !x.ok);
+      toast(bad.length ? `${ok} fatura kesildi, ${bad.length} kesilemedi: ${bad[0].message}` : `${ok} fatura kesildi.`, bad.length ? 'err' : 'ok');
+      if (!r.results.length) toast('Seçilen siparişlerin faturası zaten kesilmiş.');
+      setSelected(new Set()); reload(); bump();
+    } catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
+  }
 
   /** Durum değişikliği: kargo, fatura ve iade için önce bilgi penceresi açılır */
   function ask(list: Order[], next: OrderStatus) {
@@ -110,6 +127,7 @@ export default function OrdersPage() {
   return (
     <div className="space-y-4 fade-in">
       <CostBreakdown orderId={detail} onClose={() => setDetail(null)} />
+      <InvoiceModal orderId={invoiceFor} onClose={() => setInvoiceFor(null)} onChanged={() => { reload(); bump(); }} />
 
       <Modal open={!!pending} onClose={() => setPending(null)} title={pending ? `${pending.orders.length > 1 ? `${pending.orders.length} sipariş` : `#${no(pending.orders[0])}`} → ${ORDER_STATUS_META[pending.status].label}` : ''}>
         {pending && (
@@ -188,6 +206,7 @@ export default function OrdersPage() {
             <option value="">Toplu durum değiştir…</option>
             {ORDER_STATUSES.filter((s) => s !== 'new').map((s) => <option key={s} value={s}>{ORDER_STATUS_META[s].label}</option>)}
           </select>
+          <Button variant="secondary" loading={busy} onClick={issueInvoices}><FileText className="w-4 h-4" /> Fatura kes</Button>
           <Button variant="secondary" onClick={() => window.open(`/orders/labels?ids=${chosen.map((o) => o.id).join(',')}`, '_blank')}><Printer className="w-4 h-4" /> Kargo etiketi yazdır</Button>
           <Button onClick={() => ask(chosen, 'shipped')}><Truck className="w-4 h-4" /> Kargoya verildi</Button>
           <button onClick={() => setSelected(new Set())} className="p-2 text-slate-500" aria-label="Seçimi temizle"><X className="w-4 h-4" /></button>
@@ -222,6 +241,7 @@ export default function OrdersPage() {
                   {isLate(o) && <div className="text-[11px] text-rose-600 font-medium mt-0.5">⏰ Kargoya teslim süresi geçti ({fmtDate(costOf(o)?.deadline)})</div>}
                   {o.return_reason && <div className="text-[11px] text-fuchsia-700 mt-0.5">İade nedeni: {o.return_reason}</div>}
                   {o.tracking_number && <div className="text-[11px] text-slate-500 mt-0.5">Takip: {o.tracking_number}</div>}
+                  <InvoiceBadge o={o} onOpen={() => setInvoiceFor(o.id)} />
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold tabular-nums">{tl2(o.total_amount)}</span>
@@ -258,6 +278,7 @@ export default function OrdersPage() {
                       <td className="px-3 py-3 max-w-[260px]">
                         <div className="truncate" title={o.items.map((i) => `${i.quantity}x ${i.product_title} (${i.sku})`).join('\n')}>{o.items.map((i) => i.product_title).join(', ')}</div>
                         {o.return_reason && <div className="text-[11px] text-fuchsia-700 truncate">İade: {o.return_reason}</div>}
+                        <InvoiceBadge o={o} onOpen={() => setInvoiceFor(o.id)} />
                       </td>
                       <td className="px-3 py-3 text-right">{o.items.reduce((s, i) => s + i.quantity, 0)}</td>
                       <td className="px-3 py-3 text-right font-medium">{tl2(o.total_amount)}</td>
@@ -292,4 +313,15 @@ export default function OrdersPage() {
       )}
     </div>
   );
+}
+
+/** Siparişin fatura durumu (tıklayınca fatura penceresi) */
+function InvoiceBadge({ o, onOpen }: { o: Order; onOpen: () => void }) {
+  const inv = invOf(o);
+  const t = inv?.status === 'issued' ? { c: 'text-emerald-700', l: `🧾 ${inv.invoice_number ?? 'Fatura kesildi'}` }
+    : inv?.status === 'failed' ? { c: 'text-rose-600', l: '🧾 Fatura kesilemedi' }
+    : inv ? { c: 'text-amber-700', l: '🧾 Fatura sırada' }
+    : o.invoice_number ? { c: 'text-emerald-700', l: `🧾 ${o.invoice_number}` }
+    : { c: 'text-slate-400 hover:text-indigo-600', l: '🧾 Fatura' };
+  return <button onClick={onOpen} className={cx('block text-[11px] mt-0.5 hover:underline', t.c)} title={inv?.last_error ?? undefined}>{t.l}</button>;
 }

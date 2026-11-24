@@ -8,6 +8,7 @@ import { processDueJobs } from '@/lib/sync/jobs';
 import { refreshFx } from '@/lib/fees/service';
 import { errorMessage } from '@/lib/marketplaces/http';
 import { runNotifications } from '@/lib/notify';
+import { processDueInvoices } from '@/lib/invoicing/service';
 import { mailConfigured } from '@/lib/auth/mail';
 
 export const dynamic = 'force-dynamic';
@@ -66,7 +67,17 @@ async function run(req: Request) {
       }
     });
   }
-  // 3) E-posta bildirimleri (bildirimi açık mağazalar; her mağaza tek e-posta)
+  // 3) Fatura kuyruğu (zamanı gelen faturalar, mağaza mağaza)
+  const invoices: Record<string, unknown> = {};
+  {
+    const { data: due } = await rawDb().from('invoices').select('store_id').in('status', ['pending', 'processing']).lte('next_try_at', new Date().toISOString()).limit(500);
+    for (const sid of new Set((due ?? []).map((r) => r.store_id as string))) {
+      if (Date.now() > deadline - 5_000) break;
+      invoices[sid] = await withStore(sid, () => processDueInvoices({ budgetMs: Math.min(20_000, deadline - Date.now()) })).catch((e) => ({ error: errorMessage(e) }));
+    }
+  }
+
+  // 4) E-posta bildirimleri (bildirimi açık mağazalar; her mağaza tek e-posta)
   const notifications: Record<string, unknown> = {};
   if (mailConfigured()) {
     const { data: ns } = await rawDb().from('app_settings').select('store_id').eq('key', 'notifications');
@@ -75,7 +86,7 @@ async function run(req: Request) {
       notifications[r.store_id] = await withStore(r.store_id, () => runNotifications()).catch((e) => ({ error: errorMessage(e) }));
     }
   }
-  return { jobs, stores: stores.length, skipped, results, notifications, ms: Date.now() - started, at: new Date().toISOString() };
+  return { jobs, stores: stores.length, skipped, results, invoices, notifications, ms: Date.now() - started, at: new Date().toISOString() };
 }
 
 export const GET = handlePublic(run);
