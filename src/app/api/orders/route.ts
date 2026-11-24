@@ -17,7 +17,7 @@ export const GET = handle(async (req: Request) => {
   const now = new Date().toISOString();
   let query = db()
     .from('orders')
-    .select(`id, external_order_id, marketplace_name, customer_name, total_amount, status, order_date, shipped_at, carrier, tracking_number, invoice_number, return_reason, items:order_items(sku, product_title, quantity, unit_price), cost:order_costs${late ? '!inner' : ''}(net_profit, status, margin_on_revenue, same_day_eligible, same_day_met, fast_eligible, fast_met, deadline)`, { count: 'exact' })
+    .select(`id, external_order_id, marketplace_name, customer_name, total_amount, status, order_date, shipped_at, carrier, tracking_number, invoice_number, return_reason, items:order_items(sku, product_title, quantity, unit_price), cost:order_costs${late ? '!inner' : ''}(net_profit, status, margin_on_revenue, same_day_eligible, same_day_met, fast_eligible, fast_met, deadline), invoice:invoices(status, invoice_number, last_error)`, { count: 'exact' })
     .order('order_date', { ascending: false })
     .range(page * pageSize, page * pageSize + pageSize - 1);
 

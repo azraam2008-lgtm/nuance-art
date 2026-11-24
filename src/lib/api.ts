@@ -83,7 +83,7 @@ export function requireRole(min: Role) {
 const STAFF_BLOCKED = [
   /^\/api\/credentials/, /^\/api\/fees\//, /^\/api\/profit/, /^\/api\/insights/, /^\/api\/expenses/, /^\/api\/ads/,
   /^\/api\/products\/bulk-(price|import)/, /^\/api\/products\/import/, /^\/api\/simulate/, /^\/api\/orders\/[^/]+\/cost/, /^\/api\/demo/,
-  /^\/api\/products\/[^/]+\/listings$/,
+  /^\/api\/products\/[^/]+\/listings$/, /^\/api\/invoicing/,
 ];
 const OWNER_ONLY = [/^\/api\/demo/];
 export function checkPolicy(role: Role, path: string, method: string) {

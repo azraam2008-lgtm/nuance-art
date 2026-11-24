@@ -118,7 +118,11 @@ export interface MarketplaceAdapter {
   updateProduct?(product: ProductPayload, externalId: string | null): Promise<AdapterResult>;
   /** Paneldeki sipariş durumu değişikliğini pazaryerine bildirir (Hazırlanıyor, Kargoda, İptal…) */
   updateOrderStatus?(u: OrderStatusUpdate): Promise<AdapterResult>;
+  /** Kesilen faturanın bağlantısını pazaryerine bildirir (Trendyol). Olmayan pazaryerinde fatura numarası durum güncellemesiyle gider. */
+  sendInvoiceLink?(u: InvoiceLinkUpdate): Promise<AdapterResult>;
 }
+
+export interface InvoiceLinkUpdate { externalOrderId: string; raw: unknown; invoiceNumber: string; invoiceLink: string; invoiceDate: string }
 
 /** Pazaryerine bildirilecek sipariş durumu. raw: pazaryerinden gelen orijinal sipariş/paket verisi */
 export interface OrderStatusUpdate {

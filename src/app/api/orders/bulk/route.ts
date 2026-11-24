@@ -3,6 +3,7 @@ import { isOrderStatus } from '@/lib/marketplaces/meta';
 import { changeOrderStatus, markShipped, type RemoteStatusResult } from '@/lib/sync/engine';
 import { errorMessage } from '@/lib/marketplaces/http';
 import { audit } from '@/lib/audit';
+import { getInvoicingSettings, processDueInvoices, queueInvoices } from '@/lib/invoicing/service';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -29,6 +30,14 @@ export const POST = handle(async (req: Request) => {
     }
   }
   const okCount = results.filter((r) => r.ok).length;
+  // Otomatik fatura: kargoya verilenler sıraya alınır; kalan süre yetmezse zamanlayıcı keser
+  if (b.action === 'ship' || b.status === 'shipped') {
+    try {
+      const s = await getInvoicingSettings();
+      const shipped = results.filter((r) => r.ok).map((r) => r.id);
+      if (s.auto && shipped.length) { await queueInvoices(shipped); await processDueInvoices({ orderIds: shipped, budgetMs: Math.max(0, 55_000 - (Date.now() - started)) }); }
+    } catch (e) { console.error('[invoice bulk]', e); }
+  }
   if (okCount) await audit('Toplu sipariş işlemi', `${okCount} sipariş → ${b.action === 'ship' ? 'kargoya verildi' : b.status}`);
   return { results };
 });

@@ -1,5 +1,6 @@
 import type { OrderStatus } from '../meta';
 import type {
+  InvoiceLinkUpdate,
   AttributeDef, BrandOption, CategoryOption,
   AdapterResult, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder,
   OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
@@ -249,6 +250,22 @@ export class TrendyolAdapter implements MarketplaceAdapter {
    *  Kargoda: Trendyol anlaşmalı kargoda paket kargo firması teslim alınca otomatik "Kargoda" olur;
    *  kendi kargonuzla gönderiyorsanız takip numarası bildirilir.
    */
+  /** Fatura bağlantısı: POST /sellers/{sellerId}/seller-invoice-links (yol Gelişmiş ayarlardan değiştirilebilir) */
+  async sendInvoiceLink(u: InvoiceLinkUpdate): Promise<AdapterResult> {
+    const pkg = rec(u.raw);
+    const pkgId = str(pkg.id) || u.externalOrderId.split('/')[1];
+    if (!pkgId) return { ok: false, message: 'Trendyol paket numarası bulunamadı (sipariş yeniden senkronlanmalı).' };
+    try {
+      await request(this.url(str(this.c.extra.invoiceLinkPath) || '/sellers/{sellerId}/seller-invoice-links'), {
+        method: 'POST', headers: this.headers,
+        json: { invoiceLink: u.invoiceLink, shipmentPackageId: Number(pkgId) || pkgId, invoiceDateTime: Date.parse(u.invoiceDate) || Date.now(), invoiceNumber: u.invoiceNumber },
+      });
+      return { ok: true, message: `Fatura bağlantısı Trendyol'a gönderildi (${u.invoiceNumber}).` };
+    } catch (e) {
+      return { ok: false, message: `Trendyol fatura bağlantısı: ${errorMessage(e)}` };
+    }
+  }
+
   async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
     const pkg = rec(u.raw);
     const pkgId = str(pkg.id) || u.externalOrderId.split('/')[1];

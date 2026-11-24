@@ -60,6 +60,10 @@ export class DemoAdapter implements MarketplaceAdapter {
     ].map((p) => ({ ...p, description: `${p.title} — Trendyol mağazasından aktarıldı.` }));
   }
 
+  async sendInvoiceLink(u: { invoiceNumber: string }): Promise<AdapterResult> {
+    return { ok: true, message: `Deneme: fatura ${u.invoiceNumber} pazaryerine bildirilmiş sayıldı (gerçek istek yok).` };
+  }
+
   async updateOrderStatus(u: OrderStatusUpdate): Promise<AdapterResult> {
     await wait(100, 300);
     return { ok: true, message: `[Simülasyon] ${MARKETPLACE_META[this.name].label} sipariş durumu: ${u.status}` };

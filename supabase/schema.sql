@@ -610,6 +610,37 @@ alter table app_users add column if not exists terms_accepted_at timestamptz;
 alter table app_users add column if not exists terms_version text;
 
 -- =====================================================================
+-- 9h) FATURALAR (e-Arşiv / e-Fatura)
+--  Sipariş başına tek fatura kaydı (order_id tekil → aynı sipariş iki kez faturalanmaz).
+--  Aynı zamanda kuyruktur: pending/processing kayıtlar zamanlayıcı ile tekrar denenir.
+-- =====================================================================
+create table if not exists invoices (
+  id             uuid primary key default gen_random_uuid(),
+  store_id       uuid not null references stores(id) on delete cascade,
+  order_id       uuid not null references orders(id) on delete cascade,
+  provider       text not null default 'manual',          -- manual | parasut | nilvera | demo
+  status         text not null default 'pending' check (status in ('pending','processing','issued','failed','cancelled')),
+  kind           text,                                    -- e_archive | e_invoice
+  invoice_number text,
+  uuid           text,                                    -- faturanın ETTN'si (sağlayıcıya tekrar gönderimde aynı kalır → idempotent)
+  issued_at      timestamptz,
+  total          numeric(12,2),
+  pdf_path       text,                                    -- Storage 'invoices' kovasındaki dosya
+  public_token   text unique,                             -- pazaryerine verilen herkese açık PDF bağlantısı için
+  provider_ref   jsonb not null default '{}'::jsonb,      -- sağlayıcıdaki ara kayıtlar (müşteri, taslak, iş numarası)
+  marketplace_sent text,                                  -- pazaryerine fatura bildirimi sonucu
+  attempts       int not null default 0,
+  next_try_at    timestamptz not null default now(),
+  last_error     text,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  unique (order_id)
+);
+create index if not exists idx_invoices_store on invoices(store_id, created_at desc);
+create index if not exists idx_invoices_due on invoices(status, next_try_at);
+alter table invoices enable row level security;
+
+-- =====================================================================
 -- FONKSİYONLAR
 -- =====================================================================
 
@@ -882,7 +913,7 @@ begin
   delete from marketplace_listings where store_id = p_store_id; delete from products where store_id = p_store_id;
   delete from sync_logs where store_id = p_store_id; delete from sync_jobs where store_id = p_store_id;
   delete from ad_spend where store_id = p_store_id; delete from expenses where store_id = p_store_id;
-  delete from audit_log where store_id = p_store_id;
+  delete from audit_log where store_id = p_store_id; delete from invoices where store_id = p_store_id;
 end $$;
 
 drop function if exists seed_demo_data();

@@ -5,6 +5,7 @@ import { ChevronDown, Database, Save, ShieldCheck, Truck, Zap } from 'lucide-rea
 import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import MarketplaceConnect, { type Cred } from '@/components/MarketplaceConnect';
+import InvoicingSettingsCard from '@/components/InvoicingSettings';
 import { CARRIERS_BY_MARKETPLACE } from '@/lib/fees/carriers';
 import { DEFAULT_COMMISSION } from '@/lib/fees/commission-defaults';
 import { Button, Card, ErrorBox, MarketplaceBadge, PageLoader, cx, inputClass } from '@/components/ui';
@@ -54,6 +55,8 @@ function SettingsInner() {
           </Card>
         ))}
       </div>
+
+      <InvoicingSettingsCard />
 
       <ListingDefaultsCard connected={data.credentials.filter((c) => c.mode !== 'off').map((c) => c.marketplace)} />
 
