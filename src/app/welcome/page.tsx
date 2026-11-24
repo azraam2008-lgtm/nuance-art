@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Bell, Boxes, Calculator, FlaskConical, Lightbulb, ListChecks, ShoppingCart, Smartphone, Users } from 'lucide-react';
+import { ArrowRight, Boxes, Calculator, FlaskConical, Lightbulb, ListChecks, ShoppingCart, Users } from 'lucide-react';
 import { BrandMark, BrandName } from '@/components/Brand';
 import { BRAND } from '@/lib/brand';
 
@@ -8,14 +8,36 @@ export const metadata = { title: `${BRAND.name} — ${BRAND.tagline}` };
 const MARKETS = ['Trendyol', 'Hepsiburada', 'N11', 'Çiçeksepeti', 'Pazarama', 'idefix', 'Koçtaş', 'Etsy'];
 
 const FEATURES = [
-  { icon: Boxes, t: 'Ortak stok havuzu', d: 'Bir pazaryerinde satış olunca stok düşer ve yeni stok diğer tüm ilanlara otomatik gider. Aynı ürünü iki kez satma derdi biter.' },
-  { icon: ShoppingCart, t: 'Tüm siparişler tek listede', d: 'Siparişler kendiliğinden gelir. Durumu panelde değiştirin; siparişin geldiği pazaryerine bildirilir. Geciken siparişler kırmızı uyarı verir.' },
-  { icon: Calculator, t: 'Gerçek kâr hesabı', d: 'Her pazaryeri için komisyon, kargo, hizmet bedeli ve stopaj düşülür; her üründe ve her siparişte net kârınızı görürsünüz. Zararına satışta uyarır.' },
-  { icon: ListChecks, t: 'Hiçbir hata saklanmaz', d: 'Pazaryerine gönderilemeyen işlemler kayda alınır, kendiliğinden tekrar denenir ve İşlem Merkezi\'nde pazaryeri bazında gösterilir.' },
-  { icon: Lightbulb, t: 'Öneriler', d: 'Hangi ürünün stoğu kaç günde biter, hangi ürün zarar ettiriyor, hangi pazaryeri daha kârlı — verilerinizden hesaplanır.' },
-  { icon: Users, t: 'Ekip ve yetkiler', d: 'Çalışanlarınızı davet edin. Personel sipariş ve stokla çalışır ama maliyet, kâr ve API anahtarlarını göremez. Kim ne yaptı kayıtta durur.' },
-  { icon: Bell, t: 'E-posta bildirimleri', d: 'Yeni sipariş, biten stok, geciken kargo ve gönderilemeyen işlemler e-postanıza gelir; isterseniz her sabah günlük özet.' },
-  { icon: Smartphone, t: 'Telefondan da çalışır', d: 'Ürün ekleyin, fotoğrafı kameradan çekin, siparişi kargoya verin — bilgisayar başında olmanız gerekmez.' },
+  { icon: Boxes, t: 'Ürün ve ortak stok', d: [
+    'Ürünü bir kez ekleyin, tüm pazaryerlerine gitsin',
+    'Bir yerde satılınca stok her yerde düşer',
+    'Renk/beden seçenekleri, Excel ile toplu yükleme',
+  ] },
+  { icon: ShoppingCart, t: 'Siparişler tek listede', d: [
+    'Durumu ve kargo numarasını panelden pazaryerine gönderin',
+    'Toplu kargoya verme, iade nedenleri',
+    'Kargo süresi geçenler için uyarı',
+  ] },
+  { icon: Calculator, t: 'Gerçek kâr', d: [
+    'Komisyon, kargo, hizmet bedeli ve stopaj sonrası net kâr',
+    'Hedef kâra göre fiyat önerisi, zararına satış uyarısı',
+    'Giderler ve reklam düşülmüş aylık işletme kârı',
+  ] },
+  { icon: Lightbulb, t: 'Öneriler', d: [
+    'Hangi ürünün stoğu kaç günde biter',
+    'Hangi ürün zarar ettiriyor, hangisi yükselişte',
+    'Hangi pazaryeri daha kârlı',
+  ] },
+  { icon: Users, t: 'Ekip ve bildirimler', d: [
+    'Personel kâr ve şifreleri göremez; kim ne yaptı kayıtta',
+    'Yeni sipariş, biten stok ve gecikmeler e-postanıza gelir',
+    'İsterseniz her sabah dünün özeti',
+  ] },
+  { icon: ListChecks, t: 'Güvenilir çalışır', d: [
+    'Gönderilemeyen işlem kaybolmaz, kendiliğinden tekrar denenir',
+    'Panel kapalıyken de 5 dakikada bir eşitleme',
+    'Telefondan da rahat kullanım',
+  ] },
 ];
 
 const STEPS = [
@@ -52,12 +74,14 @@ export default function WelcomePage() {
 
       <section className="max-w-6xl mx-auto px-4 py-14">
         <h2 className="text-2xl font-bold">Neler yapabilirsiniz?</h2>
-        <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {FEATURES.map(({ icon: Icon, t, d }) => (
             <div key={t} className="rounded-2xl border border-slate-200 p-5">
               <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 grid place-items-center"><Icon className="w-5 h-5" /></div>
               <h3 className="font-semibold mt-3">{t}</h3>
-              <p className="text-sm text-slate-600 mt-1">{d}</p>
+              <ul className="mt-2 space-y-1.5">
+                {d.map((x) => <li key={x} className="text-sm text-slate-600 flex gap-2"><span className="text-emerald-600 shrink-0">✓</span>{x}</li>)}
+              </ul>
             </div>
           ))}
         </div>
