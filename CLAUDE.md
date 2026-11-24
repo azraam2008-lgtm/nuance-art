@@ -90,7 +90,7 @@ Yerel geliştirme için `.env.example` dosyasını `.env.local` olarak kopyala. 
   - `SESSION_SECRET`, `CREDENTIALS_ENCRYPTION_KEY`, `CRON_SECRET`, `WEBHOOK_SECRET`.
   - Anon/publishable anahtar girilmedi; Vercel arayüzü ad hatası verdi. Zorunlu değil.
   - `APP_URL` girilmedi; Etsy dönüş adresi ve şifre sıfırlama bağlantısı istek origin'inden üretiliyor.
-  - `GMAIL_USER` + `GMAIL_APP_PASSWORD` ("Şifremi unuttum" e-postası için): henüz girilmedi. Girilmezse `/forgot` bunu söyleyen bir hata gösterir.
+  - `GMAIL_USER` (panelkervan@gmail.com) + `GMAIL_APP_PASSWORD`: 2026-11-24 girildi, deneme e-postası çalıştı.
 - **Cron:** Hobby plan günde bir cron'a izin veriyor; `vercel.json` günlük çalışıyor. Panel açıkken `Shell.tsx` 3 dakikada bir `/api/sync` çağırır. Panel kapalıyken de sık senkron için cron-job.org kurulumu önerildi, henüz yapılmadı: 5 dakikada bir `GET /api/cron/sync?token=CRON_SECRET`.
 
 ## Bilinen tuzaklar (yaşandı)
@@ -103,17 +103,16 @@ Yerel geliştirme için `.env.example` dosyasını `.env.local` olarak kopyala. 
 ## Durum ve sıradaki işler
 - **Canlıda (2026-11-23, PR azraam2008-lgtm/nuance-art#1 birleştirildi):** çok mağazalı yapı, kayıt, şifre değiştirme/sıfırlama, sipariş durumu gönderimi, kategori araması ve içerik güncelleme, sade kurulum, galeri/kamera fotoğraf, reklam sayfası, telefon uyumu, iş kuyruğu + İşlem Merkezi, zamanlayıcı, varyantlar.
   - Kullanıcının `schema.sql` ve `zamanlayici.sql`'i çalıştırdığı teyit edilmeli (İşlem Merkezi ve Stok sayfası hatasız açılıyorsa şema tamam).
-  - `GMAIL_USER` ve `GMAIL_APP_PASSWORD` henüz eklenmedi.
   - Bu ortamdan canlı siteye erişilemiyor (proxy engeli); canlı kontrolü kullanıcı yapıyor.
 - **Doğrulanmamış uç noktalar:** Gerçek API anahtarlarıyla denenip hata mesajlarına göre düzeltilmeli. Kullanıcı gerçek hesaplarla deneyecek.
   - Pazarama, idefix, Koçtaş: adaptörlerin tamamı.
   - Diğerlerinde yeni eklenenler: sipariş durumu gönderimi (özellikle Pazarama durum kodları, idefix yolu, Çiçeksepeti "readyforcargo" uçları, N11 `rest/order/v1/update`) ve kategori listesi uçları (Hepsiburada, N11, Çiçeksepeti, Pazarama, idefix).
   - Yolların çoğu Ayarlar > Gelişmiş'ten (`extra_config`) değiştirilebilir.
-- **Sık senkron:** cron-job.org yerine `supabase/zamanlayici.sql` (pg_cron) kullanılacak.
+- **Sık senkron:** pg_cron işi `kervan-senkron` yeni Vercel adresini 5 dakikada bir çağırıyor (2026-11-24, 200 döndü). Eski adres nuance-art-aras25.vercel.app silinmedi.
 - **Telefon uyumu (yapıldı):** `lg` altında yan menü soldan açılır çekmece, altta sekme çubuğu (`Shell.tsx`). Tablolu sayfalarda (Ürünler, Stok, Siparişler) `md` altında kart listesi gösterilir; yeni tablolu sayfa eklerken aynı düzeni kullan.
 - **Kullanıcı kararları (2026-11-23):** Bütün pazaryerleri eşit öncelikli (öne çıkan yok). Sipariş durumları 8 (yapıldı), daha fazlası değil. İş kuyruğu ve varyant yapıldı. Barındırma (ücretli plan): şimdilik ücretsiz devam.
 - **Kullanıcının gerçek satıcı hesabı yok;** gerçek API testini teyzesi yapacak. Kullanıcı paneli deneme mağazasıyla deniyor.
 - **İkinci paket (deneme mağazası, 8 durum, toplu sipariş, geciken uyarı, iade, giderler, öneriler, güvenlik stoğu, zarar uyarısı, toplu fiyat, CSV):** canlıya alınması için kullanıcı `schema.sql`'i tekrar çalıştırmalı (is_demo, 9e/9f bölümleri, clear_store_data) ve PR'ı birleştirmeli.
-- **A grubu (ekip/roller, bildirimler, yasal metinler, tanıtım):** yapıldı; canlı için `schema.sql` tekrar çalıştırılmalı (9g bölümü).
+- **A grubu (ekip/roller, bildirimler, yasal metinler, tanıtım) ve Kervan adı:** canlıda (PR #3, #4 birleşti, 9g SQL çalıştırıldı).
 - **Yapılmayanlar / sonraki adaylar:** abonelik ödemesi (iyzico/Stripe; fiyat kararı kullanıcıda), kargo etiketi ve e-fatura (entegratör gerekir), rakip fiyat (yalnızca resmi buybox verisiyle; gerçek hesapla doğrulanmalı), işletme asistanı: karar = önce otomatik "İşletme özeti" (rakamları kod hesaplar, model yalnızca yorum yazar), soru-cevap sonra ve günlük sınırla; kullanıcı model seçimini onaylamalı.
 - **Varyant sınırları:** Hepsiburada, N11, Çiçeksepeti, Pazarama, idefix'te seçenekler ana kodla gruplanır ve başlıkta görünür, ama pazaryerinin kendi varyant özelliği (renk/beden kodu) gönderilmiyor; Etsy'de her seçenek ayrı ilan. Gerçek hesapla doğrulanmalı.
