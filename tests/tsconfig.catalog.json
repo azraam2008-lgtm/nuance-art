@@ -1,0 +1,4 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "baseUrl": "..", "paths": { "@/lib/supabase/server": ["tests/fakes/supabase-server.ts"], "@/*": ["src/*"] } }
+}
