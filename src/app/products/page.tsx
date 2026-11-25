@@ -2,12 +2,13 @@
 import { useIsStaff } from '@/components/role';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Calculator, CheckSquare, Download, FileSpreadsheet, Plus, RefreshCw, Search, Sparkles, Tag, X } from 'lucide-react';
+import { AlertTriangle, Calculator, CheckSquare, CloudDownload, Download, FileSpreadsheet, Plus, RefreshCw, Search, Sparkles, Tag, X } from 'lucide-react';
 import ProductCostModal, { type ProductCfg } from '@/components/ProductCostModal';
 import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Empty, ErrorBox, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
 import MarketplaceImport from '@/components/MarketplaceImport';
+import CatalogImport from '@/components/CatalogImport';
 import { BulkPriceModal, CsvImportModal } from '@/components/ProductBulk';
 import { STATUS_LABEL, STATUS_STYLE, stockSynced, variantText, type Product } from '@/components/product-shared';
 
@@ -28,6 +29,8 @@ export default function ProductsPage() {
   const staff = useIsStaff();
   const { data, error, loading, reload } = useLiveData<{ products: Product[] }>('/api/products');
   const [importOpen, setImportOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('catalog') === '1') setCatalogOpen(true); }, []);
   const [busy, setBusy] = useState<string | null>(null);
   const [costFor, setCostFor] = useState<ProductCfg | null>(null);
   const [q, setQ] = useState('');
@@ -81,7 +84,8 @@ export default function ProductsPage() {
   return (
     <div className="space-y-4 sm:space-y-6 fade-in">
       <div className="flex flex-wrap gap-2 justify-end">
-        {connected.length > 0 && <Button variant="secondary" onClick={() => setImportOpen(true)}><Download className="w-4 h-4" /> Pazaryerindeki ürünleri içe aktar</Button>}
+        {connected.length > 0 && !staff && <Button onClick={() => setCatalogOpen(true)}><CloudDownload className="w-4 h-4" /> Tüm ürünleri pazaryerlerinden çek</Button>}
+        {connected.length > 0 && !staff && <Button variant="secondary" onClick={() => setImportOpen(true)}><Download className="w-4 h-4" /> Seçerek içe aktar</Button>}
         <Button variant="secondary" onClick={() => setCsvOpen(true)}><FileSpreadsheet className="w-4 h-4" /> Excel/CSV&apos;den yükle</Button>
         <Link href="/products/new" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white"><Plus className="w-4 h-4" /> Yeni Ürün Ekle</Link>
       </div>
@@ -95,6 +99,13 @@ export default function ProductsPage() {
       )}
 
       {loading ? <PageLoader /> : error ? <ErrorBox error={error} onRetry={reload} /> : !products.length ? (
+        connected.length > 0 && !staff ? (
+          <Card className="p-6 text-center space-y-3">
+            <div className="text-lg font-semibold">Pazaryerlerinizdeki ürünleri panele alın</div>
+            <p className="text-sm text-slate-600 max-w-xl mx-auto">Bağlı pazaryerlerinizdeki ({connected.map((m) => MARKETPLACE_META[m].label).join(', ')}) bütün ürünler tek tuşla gelir. Aynı ürün birden fazla pazaryerinde varsa tek ürün olarak birleştirilir.</p>
+            <Button onClick={() => setCatalogOpen(true)}><CloudDownload className="w-4 h-4" /> Tüm ürünleri pazaryerlerinden çek</Button>
+          </Card>
+        ) :
         <Card><Empty>Henüz ürün yok. <Link href="/products/new" className="text-indigo-600 underline">Yeni Ürün Ekle</Link> ile ilk ürününüzü oluşturun — fotoğraflar, açıklama ve fiyatla birlikte tüm bağlı pazaryerlerine gönderilir.</Empty></Card>
       ) : (
         <>
@@ -242,6 +253,7 @@ export default function ProductsPage() {
       <ProductCostModal product={costFor} onClose={() => setCostFor(null)} />
       <BulkPriceModal ids={priceFor} onClose={() => { setPriceFor(null); setSelected(new Set()); }} />
       <CsvImportModal open={csvOpen} onClose={() => setCsvOpen(false)} />
+      <CatalogImport open={catalogOpen} onClose={() => setCatalogOpen(false)} onDone={reload} />
       {connected.length > 0 && <MarketplaceImport open={importOpen} onClose={() => setImportOpen(false)} sources={connected} />}
     </div>
   );

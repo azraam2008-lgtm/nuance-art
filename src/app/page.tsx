@@ -49,8 +49,9 @@ export default function DashboardPage() {
       {h.products === 0 && (
         <Card className="p-6 flex flex-wrap items-center gap-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
           <PackagePlus className="w-8 h-8 text-amber-300" />
-          <div className="flex-1"><div className="font-semibold">İlk ürününüzü ekleyin</div><div className="text-sm text-slate-300">Fotoğraf, açıklama ve fiyatı bir kez girin; bağlı tüm pazaryerlerine aynı sırayla gönderilsin. Kâr ve kesintiler otomatik hesaplanır.</div></div>
-          <Link href="/products/new" className="rounded-lg bg-amber-400 text-slate-900 font-medium px-4 py-2 text-sm">Yeni Ürün Ekle</Link>
+          <div className="flex-1"><div className="font-semibold">Ürünlerinizi panele alın</div><div className="text-sm text-slate-300">Pazaryerlerinde zaten ürünleriniz varsa tek tuşla hepsini çekin; aynı ürünler birleştirilir. Yoksa ilk ürününüzü ekleyin, tüm bağlı pazaryerlerine gitsin.</div></div>
+          <Link href="/products?catalog=1" className="rounded-lg bg-amber-400 text-slate-900 font-medium px-4 py-2 text-sm">Pazaryerlerinden çek</Link>
+          <Link href="/products/new" className="rounded-lg border border-slate-500 text-white font-medium px-4 py-2 text-sm">Yeni Ürün Ekle</Link>
         </Card>
       )}
       {alerts.length > 0 && (

@@ -64,6 +64,7 @@ Hedef: Trendyol, Hepsiburada, N11 (ve diğer bağlı pazaryerleri) üzerinden sa
   - Tüm pazaryerlerinde kategori araması (`searchCategories`, 6 saat önbellek) ve içerik güncelleme (`updateProduct`) var. Marka araması Trendyol, Pazarama ve idefix'te var. Kategori özellikleri formu yalnızca Trendyol'da.
   - Tüm adaptörlerde `updateOrderStatus` var.
   - Ürün içe aktarma (`/api/products/import?source=`) bağlı her pazaryerinden çalışır.
+  - **Tüm ürünleri çek** (`/api/products/import-all`, `src/lib/sync/catalog-import.ts`, ekran `src/components/CatalogImport.tsx`): bağlı tüm pazaryerlerinin bütün ürünleri tek kataloğa; eşleşme barkod, yoksa SKU (`catalog-merge.ts`). Farklı stok → sıfır olmayan en düşük (yalnızca bu aktarımda yeni eklenen ürünlerde; mevcut ürünün panel stoğu korunur), farklı fiyat → ilanda `price_override`. Adım adım (cursor, ~30 sn/çağrı, her çağrı en az 1 sayfa), tekrar çalıştırmak güvenli. Test: `tests/catalog-import.test.ts` (bellek içi sahte Supabase, `tests/fakes/`).
 - **Senkron motoru:** `src/lib/sync/engine.ts` — `publishProduct`, `pushStock`, `ingestOrder`, `pollOrders`, `reconcile`.
 - **Kâr motoru:** `src/lib/fees/*`, saf TypeScript.
 - **Testler:** `npm test` → fees, rates, tenant (mağaza filtresi), password, jobs (hangi hata tekrar denenir), expenses (gider orantılama), insights (öneri hesapları).
