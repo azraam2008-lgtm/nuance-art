@@ -31,7 +31,7 @@ export const POST = handle(async (req: Request) => {
     if (ids.length > 50) throw new HttpError(400, 'Tek seferde en fazla 50 fatura kesilebilir.');
     const s = await getInvoicingSettings();
     if (!(await isDemoStore()) && (s.provider === 'none' || s.provider === 'manual')) {
-      throw new HttpError(400, 'Otomatik fatura için Ayarlar → Fatura bölümünden Paraşüt veya Nilvera bağlayın. Kendi programınızla kesiyorsanız fatura numarasını siparişe yazın.');
+      throw new HttpError(400, 'Otomatik fatura için Ayarlar → Fatura bölümünden Paraşüt, Nilvera veya Uyumsoft bağlayın. Kendi programınızla kesiyorsanız fatura numarasını siparişe yazın.');
     }
     await queueInvoices(ids);
     const results = await processDueInvoices({ orderIds: ids, budgetMs: 50_000 });
