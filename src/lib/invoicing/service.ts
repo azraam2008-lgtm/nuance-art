@@ -13,6 +13,7 @@ import { DEFAULT_SETTINGS, type InvoiceProvider, type InvoicingSecrets, type Inv
 import { ParasutProvider } from './providers/parasut';
 import { NilveraProvider } from './providers/nilvera';
 import { DemoInvoiceProvider } from './providers/demo';
+import { UyumsoftProvider } from './providers/uyumsoft';
 
 const BUCKET = 'invoices';
 const BACKOFF_MIN = [1, 5, 15, 60, 180, 360];
@@ -27,6 +28,7 @@ export async function getInvoicingSettings(): Promise<InvoicingSettings & { site
     seller: { ...DEFAULT_SETTINGS.seller, ...(v.seller ?? {}) },
     parasut: { ...DEFAULT_SETTINGS.parasut, ...(v.parasut ?? {}) },
     nilvera: { ...DEFAULT_SETTINGS.nilvera, ...(v.nilvera ?? {}) },
+    uyumsoft: { ...DEFAULT_SETTINGS.uyumsoft, ...(v.uyumsoft ?? {}) },
   };
 }
 export async function getInvoicingSecrets(): Promise<InvoicingSecrets> {
@@ -51,6 +53,7 @@ export async function providerFor(s?: InvoicingSettings): Promise<InvoiceProvide
   const settings = s ?? await getInvoicingSettings();
   if (settings.provider === 'parasut') return new ParasutProvider(settings, await getInvoicingSecrets());
   if (settings.provider === 'nilvera') return new NilveraProvider(settings, await getInvoicingSecrets());
+  if (settings.provider === 'uyumsoft') return new UyumsoftProvider(settings, await getInvoicingSecrets());
   return null;
 }
 

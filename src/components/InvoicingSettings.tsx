@@ -12,6 +12,7 @@ const HELP: Record<ProviderName, string> = {
   manual: 'Faturayı kendi programınızda (veya GİB e-Arşiv Portal\'da) kesersiniz; fatura numarasını siparişe yazarsınız, isterseniz PDF\'ini de yüklersiniz. Kervan numarayı pazaryerine iletir.',
   parasut: 'Kervan faturayı Paraşüt hesabınızda otomatik keser (alıcı e-Fatura mükellefiyse e-Fatura, değilse e-Arşiv). Paraşüt\'ten API erişimi (Client ID / Secret) istemeniz gerekir.',
   nilvera: 'Kervan e-Arşiv faturayı Nilvera hesabınızda otomatik keser. API anahtarını Nilvera portalında Ayarlar → API bölümünden alırsınız.',
+  uyumsoft: 'Kervan faturayı Uyumsoft hesabınızda otomatik keser (alıcı e-Fatura mükellefiyse e-Fatura, değilse e-Arşiv). Uyumsoft\'tan "web servis (entegrasyon) kullanıcısı" istemeniz gerekir; portal giriş bilgileriniz çoğu zaman çalışmaz.',
 };
 
 /** Ayarlar → Fatura: hangi yolla fatura kesileceği, satıcı bilgileri ve sağlayıcı anahtarları */
@@ -26,7 +27,7 @@ export default function InvoicingSettingsCard() {
   const s = d.settings;
   const set = (patch: Partial<InvoicingSettings>) => setD({ ...d, settings: { ...s, ...patch } });
   const seller = (k: keyof InvoicingSettings['seller']) => ({ value: String(s.seller[k] ?? ''), onChange: (e: React.ChangeEvent<HTMLInputElement>) => set({ seller: { ...s.seller, [k]: e.target.value } }) });
-  const auto = s.provider === 'parasut' || s.provider === 'nilvera';
+  const auto = s.provider === 'parasut' || s.provider === 'nilvera' || s.provider === 'uyumsoft';
 
   async function save() {
     setBusy('save');
@@ -95,6 +96,13 @@ export default function InvoicingSettingsCard() {
                   <Field label="Nilvera API anahtarı"><input className={inputClass} type="password" placeholder={d.secrets.nilveraApiKey || ''} value={sec.nilveraApiKey ?? ''} onChange={(e) => setSec({ ...sec, nilveraApiKey: e.target.value })} /></Field>
                   <Field label="Fatura seri harfleri (3 harf)" hint="Nilvera'da tanımlı e-Arşiv seriniz"><input className={inputClass} maxLength={3} value={s.series} onChange={(e) => set({ series: e.target.value.toUpperCase() })} /></Field>
                   <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={s.nilvera.test} onChange={(e) => set({ nilvera: { ...s.nilvera, test: e.target.checked } })} /> Test ortamı (gerçek fatura kesilmez)</label>
+                </div>
+              )}
+              {s.provider === 'uyumsoft' && (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <Field label="Web servis kullanıcı adı" hint="Uyumsoft destekten entegrasyon (web servis) kullanıcısı isteyin"><input className={inputClass} value={s.uyumsoft.username} onChange={(e) => set({ uyumsoft: { ...s.uyumsoft, username: e.target.value } })} /></Field>
+                  <Field label="Web servis şifresi"><input className={inputClass} type="password" placeholder={d.secrets.uyumsoftPassword || ''} value={sec.uyumsoftPassword ?? ''} onChange={(e) => setSec({ ...sec, uyumsoftPassword: e.target.value })} /></Field>
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={s.uyumsoft.test} onChange={(e) => set({ uyumsoft: { ...s.uyumsoft, test: e.target.checked } })} /> Test ortamı (gerçek fatura kesilmez)</label>
                 </div>
               )}
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={s.auto} onChange={(e) => set({ auto: e.target.checked })} /> Sipariş &quot;kargoya verildi&quot; olunca faturayı otomatik kes</label>

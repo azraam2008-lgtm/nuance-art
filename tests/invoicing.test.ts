@@ -96,6 +96,30 @@ async function providers() {
   assert.equal(sent.body.ArchiveInvoice.InvoiceInfo.PayableAmount, 240);
   assert.equal(sent.body.ArchiveInvoice.InvoiceLines[0].Price, 100);
   assert.equal(sent.body.ArchiveInvoice.CustomerInfo.TaxNumber, ANON_TCKN);
+
+  // Uyumsoft: JSON servis, Action=SendInvoice, UBL-TR yapısı; numara + PDF
+  const { UyumsoftProvider } = await import('../src/lib/invoicing/providers/uyumsoft');
+  calls.length = 0;
+  const pdfB64 = Buffer.from('%PDF-1.4 ' + 'x'.repeat(200)).toString('base64');
+  respond(() => {
+    const body = calls[calls.length - 1].body;
+    if (body.Action === 'SendInvoice') return { IsSucceded: true, Value: [{ Id: 'U5', Number: 'UYM2026000000005' }] };
+    if (body.Action === 'GetOutboxInvoicePdf') return { IsSucceded: true, Value: { Data: pdfB64 } };
+    return { IsSucceded: true, Value: false };
+  });
+  const us = { ...DEFAULT_SETTINGS, provider: 'uyumsoft' as const, seller: { ...DEFAULT_SETTINGS.seller, name: 'Atölye', taxNumber: '1234567890' }, uyumsoft: { username: 'Uyumsoft', test: true, baseUrl: '' } };
+  const ur = await new UyumsoftProvider(us, { uyumsoftPassword: 'Uyumsoft' }).issue(draft, { uuid: 'U5', ref: {} });
+  assert.equal(ur.status, 'issued'); assert.equal(ur.invoiceNumber, 'UYM2026000000005'); assert.ok(ur.pdf && ur.pdf.length > 100);
+  const us1 = calls.find((c) => c.body?.Action === 'SendInvoice')!;
+  assert.equal(us1.url, 'https://efatura-test.uyumsoft.com.tr/api/BasicIntegrationApi');
+  assert.equal(us1.body.parameters.userInfo.Username, 'Uyumsoft');
+  const uinv = us1.body.parameters.invoices[0].Invoice;
+  assert.equal(uinv.UUID.value, 'U5'); assert.equal(uinv.ProfileId.value, 'EARSIVFATURA');
+  assert.equal(uinv.LegalMonetaryTotal.PayableAmount.value, 240); assert.equal(uinv.InvoiceLine[0].Price.PriceAmount.value, 100);
+  assert.equal(uinv.AccountingCustomerParty.Party.PartyIdentification[0].Id.schemeId, 'TCKN');
+  // Hata yanıtı açıkça iletilir
+  respond(() => ({ IsSucceded: false, Message: 'Kullanıcı adı veya şifre hatalı' }));
+  await assert.rejects(new UyumsoftProvider(us, { uyumsoftPassword: 'x' }).issue(draft, { uuid: 'U6', ref: {} }), /şifre hatalı/);
   console.log('invoicing.test.ts: sağlayıcı akışları geçti');
 }
 providers().catch((e) => { console.error(e); process.exit(1); });

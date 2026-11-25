@@ -1,6 +1,6 @@
 import type { InvoiceDraft, Party } from './model';
 
-export type ProviderName = 'none' | 'manual' | 'parasut' | 'nilvera';
+export type ProviderName = 'none' | 'manual' | 'parasut' | 'nilvera' | 'uyumsoft';
 
 /** app_settings → invoicing (gizli anahtarlar ayrı ve şifreli: invoicing_secrets) */
 export interface InvoicingSettings {
@@ -12,8 +12,9 @@ export interface InvoicingSettings {
   series: string;
   parasut: { clientId: string; username: string; companyId: string; productId: string; baseUrl: string };
   nilvera: { test: boolean; baseUrl: string };
+  uyumsoft: { username: string; test: boolean; baseUrl: string };
 }
-export interface InvoicingSecrets { parasutClientSecret?: string; parasutPassword?: string; nilveraApiKey?: string }
+export interface InvoicingSecrets { parasutClientSecret?: string; parasutPassword?: string; nilveraApiKey?: string; uyumsoftPassword?: string }
 
 export interface IssueState { uuid: string; ref: Record<string, unknown> }
 export interface IssueResult {
@@ -39,7 +40,8 @@ export const DEFAULT_SETTINGS: InvoicingSettings = {
   provider: 'none', auto: false, seller: { ...EMPTY_PARTY, website: '' }, series: 'KRV',
   parasut: { clientId: '', username: '', companyId: '', productId: '', baseUrl: '' },
   nilvera: { test: false, baseUrl: '' },
+  uyumsoft: { username: '', test: false, baseUrl: '' },
 };
 export const PROVIDER_LABEL: Record<ProviderName, string> = {
-  none: 'Fatura kesmiyorum', manual: 'Kendi programımla keserim (numarayı panele yazarım)', parasut: 'Paraşüt', nilvera: 'Nilvera',
+  none: 'Fatura kesmiyorum', manual: 'Kendi programımla keserim (numarayı panele yazarım)', parasut: 'Paraşüt', nilvera: 'Nilvera', uyumsoft: 'Uyumsoft',
 };

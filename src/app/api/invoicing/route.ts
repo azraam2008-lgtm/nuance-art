@@ -7,7 +7,8 @@ import { audit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
-const PROVIDERS: ProviderName[] = ['none', 'manual', 'parasut', 'nilvera'];
+const PROVIDERS: ProviderName[] = ['none', 'manual', 'parasut', 'nilvera', 'uyumsoft'];
+const AUTO = ['parasut', 'nilvera', 'uyumsoft'];
 const clip = (v: unknown, n = 200) => String(v ?? '').trim().slice(0, n);
 
 /** Fatura ayarları (gizli anahtarlar yalnızca maskeli döner) */
@@ -16,8 +17,8 @@ export const GET = handle(async () => {
   const sec = await getInvoicingSecrets();
   return {
     settings: s,
-    secrets: { parasutClientSecret: maskSecret(sec.parasutClientSecret ?? ''), parasutPassword: maskSecret(sec.parasutPassword ?? ''), nilveraApiKey: maskSecret(sec.nilveraApiKey ?? '') },
-    problems: s.provider === 'parasut' || s.provider === 'nilvera' ? sellerProblems(s) : [],
+    secrets: { parasutClientSecret: maskSecret(sec.parasutClientSecret ?? ''), parasutPassword: maskSecret(sec.parasutPassword ?? ''), nilveraApiKey: maskSecret(sec.nilveraApiKey ?? ''), uyumsoftPassword: maskSecret(sec.uyumsoftPassword ?? '') },
+    problems: AUTO.includes(s.provider) ? sellerProblems(s) : [],
   };
 });
 
@@ -38,12 +39,13 @@ export const PUT = handle(async (req: Request) => {
     },
     parasut: { clientId: clip(x.parasut?.clientId), username: clip(x.parasut?.username), companyId: clip(x.parasut?.companyId, 20).replace(/\D/g, ''), productId: clip(x.parasut?.productId, 20), baseUrl: clip(x.parasut?.baseUrl) },
     nilvera: { test: !!x.nilvera?.test, baseUrl: clip(x.nilvera?.baseUrl) },
+    uyumsoft: { username: clip(x.uyumsoft?.username), test: !!x.uyumsoft?.test, baseUrl: clip(x.uyumsoft?.baseUrl) },
     siteUrl: appOrigin(req),
   };
   const s = b.secrets ?? {};
-  await saveInvoicing(settings, { parasutClientSecret: s.parasutClientSecret, parasutPassword: s.parasutPassword, nilveraApiKey: s.nilveraApiKey });
+  await saveInvoicing(settings, { parasutClientSecret: s.parasutClientSecret, parasutPassword: s.parasutPassword, nilveraApiKey: s.nilveraApiKey, uyumsoftPassword: s.uyumsoftPassword });
   await audit('Fatura ayarları değişti', settings.provider);
-  return { ok: true, problems: provider === 'parasut' || provider === 'nilvera' ? sellerProblems(settings) : [] };
+  return { ok: true, problems: AUTO.includes(provider) ? sellerProblems(settings) : [] };
 });
 
 /** Bağlantı testi */

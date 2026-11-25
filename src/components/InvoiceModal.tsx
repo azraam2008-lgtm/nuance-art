@@ -55,7 +55,7 @@ export default function InvoiceModal({ orderId, onClose, onChanged }: { orderId:
   }
 
   const inv = d?.invoice;
-  const auto = d && (d.provider === 'parasut' || d.provider === 'nilvera' || d.provider === 'demo');
+  const auto = d && (d.provider === 'parasut' || d.provider === 'nilvera' || d.provider === 'uyumsoft' || d.provider === 'demo');
   return (
     <Modal open={!!orderId} onClose={onClose} wide title={d ? `Fatura · ${d.draft.marketplaceLabel} #${d.draft.orderNo}` : 'Fatura'}>
       {!d ? <div className="text-sm text-slate-500">Yükleniyor…</div> : (
