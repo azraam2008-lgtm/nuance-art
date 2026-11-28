@@ -16,6 +16,7 @@ class Q {
   eq(c: string, v: any) { this.filters.push((r) => r[c] === v); return this; }
   is(c: string, v: any) { this.filters.push((r) => (r[c] ?? null) === v); return this; }
   in(c: string, v: any[]) { this.filters.push((r) => v.includes(r[c])); return this; }
+  not(c: string, op: string, v: any) { if (op === 'is' && v === null) this.filters.push((r) => (r[c] ?? null) !== null); return this; }
   or(expr: string) { const parts = expr.split(',').map((p) => { const [c, , ...v] = p.split('.'); return [c, v.join('.')]; }); this.filters.push((r) => parts.some(([c, v]) => String(r[c]) === v)); return this; }
   order() { return this; }
   range(a: number, b: number) { this.rng = [a, b]; return this; }
