@@ -2,7 +2,7 @@ import type { OrderStatus } from '../meta';
 import type {
   AdapterResult, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { basicAuth, cachedCategories, chunk, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
+import { basicAuth, cachedCategories, chunk, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str, parseMarketDate } from '../http';
 
 /**
  * Hepsiburada Marketplace API adaptörü.
@@ -144,7 +144,7 @@ export class HepsiburadaAdapter implements MarketplaceAdapter {
         customerName: str(first.customerName || first.customer?.name || first.shippingAddress?.name),
         totalAmount: ls.reduce((s, l) => s + num(l.totalPrice, num(l.unitPrice ?? l.price) * num(l.quantity, 1)), 0),
         status,
-        orderDate: new Date(str(first.orderDate) || Date.now()).toISOString(),
+        orderDate: parseMarketDate(first.orderDate),
         items,
         raw: ls,
       } satisfies NormalizedOrder;

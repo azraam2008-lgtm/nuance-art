@@ -2,7 +2,7 @@ import type { OrderStatus } from '../meta';
 import type {
   AdapterResult, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { cachedCategories, chunk, dateWindows, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
+import { cachedCategories, chunk, dateWindows, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str, parseMarketDate } from '../http';
 
 /**
  * Çiçeksepeti Marketplace API adaptörü.
@@ -113,7 +113,7 @@ export class CiceksepetiAdapter implements MarketplaceAdapter {
         customerName: str(f.senderName || f.receiverName),
         totalAmount: ls.reduce((s, l) => s + num(l.totalPrice), 0),
         status: mapCsStatus(str(f.orderProductStatus)),
-        orderDate: new Date(str(f.orderCreateDate) || Date.now()).toISOString(),
+        orderDate: parseMarketDate(f.orderCreateDate),
         items: ls.map((l) => ({ sku: str(l.code), title: str(l.name), quantity: num(l.quantity, 1), unitPrice: num(l.itemPrice ?? l.totalPrice) / (l.itemPrice ? 1 : num(l.quantity, 1)) })),
         raw: ls,
       } satisfies NormalizedOrder;

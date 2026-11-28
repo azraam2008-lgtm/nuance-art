@@ -2,7 +2,7 @@ import type { OrderStatus } from '../meta';
 import type {
   AdapterResult, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { cachedCategories, chunk, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
+import { cachedCategories, chunk, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str, parseMarketDate } from '../http';
 
 /**
  * Koçtaş Pazaryeri adaptörü — Koçtaş satıcı operasyonları Mirakl platformunda yürür.
@@ -95,7 +95,7 @@ export class KoctasAdapter implements MarketplaceAdapter {
           customerName: `${str(o.customer?.firstname)} ${str(o.customer?.lastname)}`.trim(),
           totalAmount: num(o.total_price),
           status: mapMiraklStatus(str(o.order_state)),
-          orderDate: new Date(str(o.created_date) || Date.now()).toISOString(),
+          orderDate: parseMarketDate(o.created_date),
           items,
           raw: o,
           actualCommissionNet: o.total_commission != null ? num(o.total_commission) : null,
