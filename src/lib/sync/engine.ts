@@ -278,6 +278,8 @@ export async function ingestOrder(mp: MarketplaceName, o: NormalizedOrder) {
 async function updateShipmentFields(orderId: string, o: NormalizedOrder) {
   const u: Record<string, unknown> = {};
   const sh = o.shipment;
+  // Sipariş saati her çekişte düzeltilir (eski kayıtlar saat dilimi hatasıyla yazılmış olabilir)
+  if (o.orderDate) u.order_date = o.orderDate;
   if (sh?.carrier) u.carrier = sh.carrier;
   if (sh?.desi != null) u.desi = sh.desi;
   if (sh?.shippedAt) u.shipped_at = sh.shippedAt;

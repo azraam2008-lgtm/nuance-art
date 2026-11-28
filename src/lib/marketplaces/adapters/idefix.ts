@@ -2,7 +2,7 @@ import type { OrderStatus } from '../meta';
 import type {
   AdapterResult, BrandOption, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { cachedCategories, chunk, dateWindows, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
+import { cachedCategories, chunk, dateWindows, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str, parseMarketDate } from '../http';
 
 /**
  * idefix Pazaryeri API adaptörü.
@@ -110,7 +110,7 @@ export class IdefixAdapter implements MarketplaceAdapter {
             customerName: `${str(s.customerFirstName ?? s.firstName)} ${str(s.customerLastName ?? s.lastName)}`.trim(),
             totalAmount: num(s.totalPrice, items.reduce((t, i) => t + i.quantity * i.unitPrice, 0)),
             status: mapIdxStatus(str(s.status)),
-            orderDate: new Date(num(s.orderDate, 0) || str(s.createdAt) || Date.now()).toISOString(),
+            orderDate: parseMarketDate(s.orderDate || s.createdAt),
             items,
             raw: s,
             shipment: {

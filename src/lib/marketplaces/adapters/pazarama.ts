@@ -2,7 +2,7 @@ import type { OrderStatus } from '../meta';
 import type {
   AdapterResult, BrandOption, CategoryOption, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder, OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { basicAuth, cachedCategories, chunk, dateWindows, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str } from '../http';
+import { basicAuth, cachedCategories, chunk, dateWindows, errorMessage, flattenCategories, notSupported, num, rec, recs, request, searchIn, str, parseMarketDate } from '../http';
 
 /**
  * Pazarama İş Ortağım API adaptörü.
@@ -115,7 +115,7 @@ export class PazaramaAdapter implements MarketplaceAdapter {
             customerName: str(o.customerName),
             totalAmount: num(val(o.orderAmount), items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)),
             status: mapPzStatus(num(o.orderStatus, 0)),
-            orderDate: new Date(str(o.orderDate) || Date.now()).toISOString(),
+            orderDate: parseMarketDate(o.orderDate),
             items,
             raw: o,
             shipment: { carrier: str(o.items?.[0]?.cargo?.companyName) || null, shippedAt: null },

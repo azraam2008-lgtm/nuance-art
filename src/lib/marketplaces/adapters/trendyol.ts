@@ -5,7 +5,7 @@ import type {
   AdapterResult, MarketplaceAdapter, MarketplaceCredentials, NormalizedOrder,
   OrderStatusUpdate, ProductPayload, RemoteProduct, StockUpdate,
 } from '../types';
-import { basicAuth, chunk, dateWindows, errorMessage, notSupported, num, rec, recs, request, str } from '../http';
+import { basicAuth, chunk, dateWindows, errorMessage, notSupported, num, rec, recs, request, str, parseMarketDate } from '../http';
 
 /**
  * Trendyol Satıcı (Supplier) API adaptörü.
@@ -208,7 +208,7 @@ export class TrendyolAdapter implements MarketplaceAdapter {
       customerName: `${str(pkg.customerFirstName)} ${str(pkg.customerLastName)}`.trim(),
       totalAmount: num(pkg.totalPrice, items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)),
       status: mapTrendyolStatus(str(pkg.status)),
-      orderDate: new Date(num(pkg.orderDate, Date.now())).toISOString(),
+      orderDate: parseMarketDate(pkg.orderDate, { localEpoch: true }), // Trendyol: Türkiye saati, UTC gibi yazılmış
       items,
       raw: pkg,
       shipment: {
@@ -325,7 +325,7 @@ export function normalizeCarrier(name: string): string | null {
 
 function shippedAtOf(pkg: TrendyolPackage): string | null {
   const h = (pkg.packageHistories ?? []).find((x) => x.status === 'Shipped');
-  return h?.createdDate ? new Date(num(h.createdDate)).toISOString() : null;
+  return h?.createdDate ? parseMarketDate(h.createdDate, { localEpoch: true }) : null;
 }
 
 export function mapTrendyolStatus(s: string): OrderStatus {

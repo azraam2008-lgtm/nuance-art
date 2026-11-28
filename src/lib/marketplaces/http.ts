@@ -171,3 +171,27 @@ export function searchIn<T extends { path: string }>(items: T[], q: string, limi
   const words = q.toLocaleLowerCase('tr-TR').split(/\s+/).filter(Boolean);
   return items.filter((c) => { const p = c.path.toLocaleLowerCase('tr-TR'); return words.every((w) => p.includes(w)); }).slice(0, limit);
 }
+
+const TR_OFFSET_MS = 3 * 3600_000;
+/**
+ * Pazaryeri tarihini doğru ana çevirir (ISO). Türkiye pazaryerleri saatleri çoğunlukla Türkiye saatiyle (UTC+3) verir:
+ *  - Saat dilimi yazmayan metin ("2026-11-25 14:30:00", "25.11.2026 14:30") → Türkiye saati kabul edilir.
+ *  - Sayı (milisaniye): `localEpoch` ise Türkiye saati "UTC gibi" yazılmıştır (Trendyol) → 3 saat geri alınır.
+ */
+export function parseMarketDate(v: unknown, opts: { localEpoch?: boolean; fallback?: number } = {}): string {
+  const fb = () => new Date(opts.fallback ?? Date.now()).toISOString();
+  if (v === null || v === undefined || v === '') return fb();
+  if (typeof v === 'number' || /^\d{10,13}$/.test(String(v))) {
+    let n = Number(v);
+    if (n < 1e12) n *= 1000; // saniye
+    if (opts.localEpoch) n -= TR_OFFSET_MS;
+    return Number.isFinite(n) && n > 0 ? new Date(n).toISOString() : fb();
+  }
+  let s = String(v).trim();
+  const tr = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (tr) s = `${tr[3]}-${tr[2].padStart(2, '0')}-${tr[1].padStart(2, '0')}T${(tr[4] ?? '00').padStart(2, '0')}:${tr[5] ?? '00'}:${tr[6] ?? '00'}`;
+  const hasZone = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(s);
+  if (!hasZone && /^\d{4}-\d{2}-\d{2}/.test(s)) s = `${s.replace(' ', 'T')}${s.length <= 10 ? 'T00:00:00' : ''}+03:00`;
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? new Date(t).toISOString() : fb();
+}
