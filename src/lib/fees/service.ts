@@ -1,6 +1,6 @@
 import 'server-only';
 import { db, must } from '@/lib/supabase/server';
-import { isClosedStatus, isMarketplace, MARKETPLACES } from '@/lib/marketplaces/meta';
+import { baseOf, isClosedStatus, isMarketplace, MARKETPLACES } from '@/lib/marketplaces/meta';
 import { computeGroup, DEFAULT_SETTINGS } from './engine';
 import { DEFAULT_RATE_TABLES, DEFAULT_RULES, defaultRule } from './defaults';
 import type { CarrierRates, CostPackage, CostResult, CostSettings, FeeRule } from './types';
@@ -38,9 +38,11 @@ export async function loadRules(): Promise<FeeRule[]> {
 
 export function pickRule(rules: FeeRule[], marketplace: string, dateIso: string): FeeRule {
   const day = dateIso.slice(0, 10);
-  const list = rules.filter((r) => r.marketplace === marketplace).sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+  // İkinci mağaza (trendyol_2) ana pazaryerinin kurallarını kullanır
+  const base = baseOf(marketplace);
+  const list = rules.filter((r) => r.marketplace === base).sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
   const applicable = list.filter((r) => r.effectiveFrom <= day);
-  const rule = applicable[applicable.length - 1] ?? list[0] ?? defaultRule(marketplace);
+  const rule = applicable[applicable.length - 1] ?? list[0] ?? defaultRule(base);
   if (!rule) throw new Error(`${marketplace} için maliyet kuralı yok.`);
   return rule;
 }
@@ -228,7 +230,7 @@ function toRow(r: CostResult, rule: FeeRule) {
 /** "Ayda satan ürün kodu başına" bedeller (Çiçeksepeti listeleme) için: SKU'nun o aydaki ilk satışı mı? */
 async function firstSalesThisMonth(orders: OrderRow[], rules: FeeRule[]): Promise<Set<string>> {
   const out = new Set<string>();
-  const mps = [...new Set(orders.map((o) => o.marketplace_name))].filter((mp) => rules.some((r) => r.marketplace === mp && r.config.fees.some((f) => f.per === 'sku_month' && !f.disabled)));
+  const mps = [...new Set(orders.map((o) => o.marketplace_name))].filter((mp) => rules.some((r) => r.marketplace === baseOf(mp) && r.config.fees.some((f) => f.per === 'sku_month' && !f.disabled)));
   for (const mp of mps) {
     const mine = orders.filter((o) => o.marketplace_name === mp);
     const months = [...new Set(mine.map((o) => o.order_date.slice(0, 7)))];

@@ -2,7 +2,7 @@ import 'server-only';
 import { db, must } from '@/lib/supabase/server';
 import { decryptSecret } from '@/lib/crypto';
 import { createAdapter } from '@/lib/marketplaces/registry';
-import { MARKETPLACES, MARKETPLACE_META, OPEN_STATUSES, ORDER_PREFIX, ORDER_STATUS_META, isClosedStatus, isMarketplace, type MarketplaceName, type OrderStatus } from '@/lib/marketplaces/meta';
+import { MARKETPLACES, MARKETPLACE_META, baseOf, isSecondAccount, OPEN_STATUSES, ORDER_PREFIX, ORDER_STATUS_META, isClosedStatus, isMarketplace, type MarketplaceName, type OrderStatus } from '@/lib/marketplaces/meta';
 import type { AdapterResult, MarketplaceAdapter, NormalizedOrder, ProductPayload, StockUpdate } from '@/lib/marketplaces/types';
 import { errorMessage } from '@/lib/marketplaces/http';
 import { computeOrderCosts, loadSettings } from '@/lib/fees/service';
@@ -56,7 +56,10 @@ export async function loadAdapters(): Promise<Map<MarketplaceName, { adapter: Ma
   const demo = await isDemoStore();
   const map = new Map<MarketplaceName, { adapter: MarketplaceAdapter | null; row: CredentialRow }>();
   for (const name of MARKETPLACES) {
-    const row = rows.find((r) => r.marketplace_name === name) ?? {
+    const found = rows.find((r) => r.marketplace_name === name);
+    // İkinci mağaza (trendyol_2…) yalnızca eklenmişse çalışır (deneme mağazasında da)
+    if (isSecondAccount(name) && !(found && (found.is_active || found.api_key || found.seller_id))) continue;
+    const row = found ?? {
       marketplace_name: name, api_key: '', api_secret: '', seller_id: '', is_active: false, extra_config: {}, last_order_sync_at: null,
     };
     let secret = '';
@@ -97,7 +100,8 @@ export function toPayload(p: ProductRow, mp: MarketplaceName, l?: ListingOverrid
       ...(l?.handling_days != null ? { handlingDays: l.handling_days } : {}),
       ...(l?.same_day_tag ? { sameDay: true } : {}),
       ...(l?.fast_tag ? { fastDelivery: true } : {}),
-      ...(p.marketplace_attributes?.[mp] ?? {}),
+      // İkinci mağazada kategori/marka girilmediyse ana pazaryerininki kullanılır
+      ...(p.marketplace_attributes?.[mp] ?? p.marketplace_attributes?.[baseOf(mp)] ?? {}),
     },
   };
 }

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { BadgeCheck, ExternalLink, FileWarning, RefreshCw, RotateCcw, Save, Upload } from 'lucide-react';
-import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { BASE_MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import type { FeeRule, FeeRuleConfig } from '@/lib/fees/types';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, ErrorBox, Field, MarketplaceBadge, PageLoader, cx, inputClass } from '@/components/ui';
@@ -54,7 +54,7 @@ function RulesTab({ data }: { data: RulesResp }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
       <Card className="p-2 h-fit">
-        {MARKETPLACES.map((m) => {
+        {BASE_MARKETPLACES.map((m) => {
           const r = data.rules.filter((x) => x.marketplace === m).sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
           return (
             <button key={m} onClick={() => setMp(m)} className={cx('w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm', mp === m ? 'bg-slate-100' : 'hover:bg-slate-50')}>

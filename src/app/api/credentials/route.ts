@@ -1,7 +1,7 @@
 import { handle, HttpError, readJson } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
 import { encryptSecret, maskSecret } from '@/lib/crypto';
-import { isMarketplace, MARKETPLACE_META, MARKETPLACES } from '@/lib/marketplaces/meta';
+import { isMarketplace, isSecondAccount, MARKETPLACE_META, MARKETPLACES } from '@/lib/marketplaces/meta';
 import { GUIDES, hasRequiredKeys } from '@/lib/marketplaces/guides';
 import { log } from '@/lib/sync/engine';
 import { isDemoStore } from '@/lib/demo';
@@ -21,7 +21,8 @@ export const GET = handle(async () => {
   return {
     demoMode,
     encryption: Boolean(process.env.CREDENTIALS_ENCRYPTION_KEY),
-    credentials: MARKETPLACES.map((name) => {
+    // İkinci mağazalar (trendyol_2…) yalnızca eklenmişse listelenir
+    credentials: MARKETPLACES.filter((name) => !isSecondAccount(name) || rows.some((x) => x.marketplace_name === name && (x.is_active || x.api_key || x.seller_id))).map((name) => {
       const r = rows.find((x) => x.marketplace_name === name);
       const live = !!r?.is_active && hasRequiredKeys(name, { apiKey: r.api_key, hasSecret: !!r.api_secret, sellerId: r.seller_id });
       return {

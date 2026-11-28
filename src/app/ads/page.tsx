@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { ExternalLink, Lightbulb, Megaphone, Plus, Trash2 } from 'lucide-react';
-import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { BASE_MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { AD_GUIDES } from '@/lib/marketplaces/ads';
 import { api, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Empty, ErrorBox, Field, MarketplaceBadge, PageLoader, cx, inputClass, tl2 } from '@/components/ui';
@@ -31,7 +31,7 @@ export default function AdsPage() {
     }).catch(() => {});
   }, []);
 
-  const list = [...MARKETPLACES].sort((a, b) => Number(connected.includes(b)) - Number(connected.includes(a)));
+  const list = [...BASE_MARKETPLACES].sort((a, b) => Number(connected.includes(b)) - Number(connected.includes(a)));
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -93,7 +93,7 @@ export default function AdsPage() {
         <form onSubmit={add} className="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
           <Field label="Pazaryeri">
             <select className={inputClass} value={form.marketplace} onChange={(e) => setForm({ ...form, marketplace: e.target.value as MarketplaceName })}>
-              {MARKETPLACES.map((m) => <option key={m} value={m}>{MARKETPLACE_META[m].label}</option>)}
+              {BASE_MARKETPLACES.map((m) => <option key={m} value={m}>{MARKETPLACE_META[m].label}</option>)}
             </select>
           </Field>
           <Field label="Tarih"><input className={inputClass} type="date" value={form.date} max={today()} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>

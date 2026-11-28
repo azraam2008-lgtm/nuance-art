@@ -3,7 +3,7 @@ import { rawDb, must } from '@/lib/supabase/server';
 import { hashPassword, isEmail, validatePassword } from '@/lib/auth/password';
 import { clientIp, withSession } from '@/lib/auth/server';
 import { checkLimit, recordAttempt } from '@/lib/auth/limits';
-import { MARKETPLACES } from '@/lib/marketplaces/meta';
+import { BASE_MARKETPLACES } from '@/lib/marketplaces/meta';
 import { TERMS_VERSION } from '@/lib/legal';
 
 export const dynamic = 'force-dynamic';
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       throw new Error(ins.error.message);
     }
     const user = ins.data as { id: string; email: string; name: string; session_version: number };
-    await rawDb().from('marketplace_credentials').insert(MARKETPLACES.map((m) => ({ store_id: store.id, marketplace_name: m })));
+    await rawDb().from('marketplace_credentials').insert(BASE_MARKETPLACES.map((m) => ({ store_id: store.id, marketplace_name: m })));
     await rawDb().from('app_settings').insert({ store_id: store.id, key: 'company', value: { name: storeName, email } });
     return withSession(NextResponse.json({ ok: true }), { uid: user.id, sid: store.id, sv: user.session_version ?? 0, email: user.email, name: user.name });
   } catch (e) {

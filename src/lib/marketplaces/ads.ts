@@ -1,6 +1,6 @@
 // Pazaryeri reklam rehberi. Pazaryerleri reklam sistemlerini dışarıya API ile açmıyor;
 // reklam kendi panellerinden verilir. Menü adları pazaryerinin güncellemesiyle değişebilir.
-import type { MarketplaceName } from './meta';
+import { withSecondAccounts, type MarketplaceName } from './meta';
 
 export interface AdGuide {
   product: string;
@@ -9,7 +9,7 @@ export interface AdGuide {
   tip: string;
 }
 
-export const AD_GUIDES: Record<MarketplaceName, AdGuide> = {
+export const AD_GUIDES: Record<MarketplaceName, AdGuide> = withSecondAccounts<AdGuide>({
   trendyol: {
     product: 'Trendyol Reklam (Ürün Reklamları)',
     url: 'https://partner.trendyol.com',
@@ -90,4 +90,4 @@ export const AD_GUIDES: Record<MarketplaceName, AdGuide> = {
     ],
     tip: 'Etsy Ads ilk 1–2 haftada öğrenir; hemen kapatmayın, sonra kötü giden ilanları çıkarın.',
   },
-};
+}, (_b, v) => v);

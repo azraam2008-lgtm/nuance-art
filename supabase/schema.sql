@@ -28,6 +28,11 @@ insert into marketplaces (name, label, color, sort_order) values
   ('etsy',        'Etsy',        '#F1641E', 8)
 on conflict (name) do update set label = excluded.label, color = excluded.color, sort_order = excluded.sort_order;
 
+-- Aynı pazaryerinde ikinci mağaza (ör. iki ayrı Trendyol satıcı hesabı, ortak stok): trendyol_2 …
+insert into marketplaces (name, label, color, sort_order)
+select name || '_2', label || ' 2', color, sort_order + 100 from marketplaces where name not like '%\_2'
+on conflict (name) do update set label = excluded.label, color = excluded.color, sort_order = excluded.sort_order;
+
 -- ---------------------------------------------------------------------
 -- 1) Ürünler (ortak stok havuzu: total_stock tek gerçek kaynaktır)
 -- ---------------------------------------------------------------------
@@ -955,7 +960,7 @@ begin
            (v_comm->>m.name)::numeric, case when m.name in ('trendyol','hepsiburada','idefix') then 0 else 1 end,
            m.name = 'trendyol', m.name in ('trendyol','hepsiburada'), v_carriers->>m.name,
            case when m.name = 'etsy' then 420 else null end
-      from marketplaces m;
+      from marketplaces m where m.name not like '%\_2';
   end loop;
 
   for v_day in reverse 180..0 loop

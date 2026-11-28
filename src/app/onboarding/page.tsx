@@ -2,7 +2,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Check, Clock, FlaskConical, Rocket } from 'lucide-react';
-import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { BASE_MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useToast } from '@/components/live';
 import { BrandMark, BrandName } from '@/components/Brand';
 import MarketplaceConnect, { type Cred } from '@/components/MarketplaceConnect';
@@ -36,7 +36,7 @@ function Wizard() {
     // Etsy izninden dönüşte seçim kaybolmasın
     try {
       const saved = JSON.parse(sessionStorage.getItem(PICK_KEY) ?? '[]') as MarketplaceName[];
-      if (Array.isArray(saved) && saved.length) setPicked(saved.filter((m) => (MARKETPLACES as readonly string[]).includes(m)));
+      if (Array.isArray(saved) && saved.length) setPicked(saved.filter((m) => (BASE_MARKETPLACES as readonly string[]).includes(m)));
     } catch { /* yok say */ }
     const e = sp.get('etsy');
     if (e) setStep('etsy');
@@ -48,7 +48,7 @@ function Wizard() {
     try { sessionStorage.setItem(PICK_KEY, JSON.stringify(picked)); } catch { /* yok say */ }
   }, [picked]);
 
-  const order = MARKETPLACES.filter((m) => picked.includes(m));
+  const order = BASE_MARKETPLACES.filter((m) => picked.includes(m));
   const steps: Step[] = ['pick', ...order, 'done'];
   const idx = Math.max(0, steps.indexOf(step));
   const go = (d: 1 | -1) => setStep(steps[Math.min(steps.length - 1, Math.max(0, idx + d))]);
@@ -73,7 +73,7 @@ function Wizard() {
         <div className="text-xs uppercase tracking-wide text-slate-500 mb-3">Kurulum</div>
         <ol className="space-y-1">
           {steps.map((s, i) => {
-            const isMp = (MARKETPLACES as readonly string[]).includes(s);
+            const isMp = (BASE_MARKETPLACES as readonly string[]).includes(s);
             const done = isMp ? connected.includes(s as MarketplaceName) : i < idx;
             return (
               <li key={s}>
@@ -99,7 +99,7 @@ function Wizard() {
               <h1 className="text-2xl font-semibold">Hangi pazaryerlerinde satış yapıyorsunuz?</h1>
               <p className="text-slate-600 text-sm">Seçtiklerinizi sırayla bağlayacağız. Her biri için yalnızca gerekli anahtarı isteyeceğiz ve nereden alacağınızı adım adım göstereceğiz.</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {MARKETPLACES.map((m) => {
+                {BASE_MARKETPLACES.map((m) => {
                   const on = picked.includes(m);
                   const isLive = connected.includes(m);
                   return (
@@ -126,7 +126,7 @@ function Wizard() {
             </div>
           )}
 
-          {(MARKETPLACES as readonly string[]).includes(step) && (() => {
+          {(BASE_MARKETPLACES as readonly string[]).includes(step) && (() => {
             const mp = step as MarketplaceName;
             const c = creds?.find((x) => x.marketplace === mp);
             return (

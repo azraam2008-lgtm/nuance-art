@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Info, Loader2, Sparkles } from 'lucide-react';
-import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { BASE_MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { CARRIERS_BY_MARKETPLACE } from '@/lib/fees/carriers';
 import { api, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Field, MarketplaceBadge, cx, inputClass, tl2 } from '@/components/ui';
@@ -25,8 +25,8 @@ export default function PricingPage() {
   const { data: productData } = useLiveData<{ products: Array<{ id: string; sku: string; title: string; cost_price: number; cost_vat_rate: number | null; vat_rate: number; desi: number; packaging_cost: number; listings: Array<{ marketplace_name: string; commission_rate: number | null; carrier: string | null; same_day_tag: boolean; fast_tag: boolean; handling_days: number; manual_shipping_cost: number | null }> }> }>('/api/products');
   const [productId, setProductId] = useState('');
   const [f, setF] = useState({ unitCostNet: '14', costVatRate: '10', vatRate: '10', desi: '1', packagingNet: '0', targetType: 'margin_on_cost', targetValue: '70', adRate: '0', returnRiskRate: '0' });
-  const [mps, setMps] = useState<MarketplaceName[]>([...MARKETPLACES]);
-  const [ovr, setOvr] = useState<Record<string, Override>>(() => Object.fromEntries(MARKETPLACES.map((m) => [m, { ...EMPTY_OVR, carrier: m === 'trendyol' ? 'TEX' : '', sameDayTag: m === 'trendyol', handlingDays: m === 'trendyol' ? '0' : '' }])));
+  const [mps, setMps] = useState<MarketplaceName[]>([...BASE_MARKETPLACES]);
+  const [ovr, setOvr] = useState<Record<string, Override>>(() => Object.fromEntries(BASE_MARKETPLACES.map((m) => [m, { ...EMPTY_OVR, carrier: m === 'trendyol' ? 'TEX' : '', sameDayTag: m === 'trendyol', handlingDays: m === 'trendyol' ? '0' : '' }])));
   const [showOvr, setShowOvr] = useState(false);
   const [results, setResults] = useState<Result[] | null>(null);
   const [selected, setSelected] = useState<MarketplaceName | null>(null);
@@ -36,7 +36,7 @@ export default function PricingPage() {
   useEffect(() => {
     if (!product) return;
     setF((x) => ({ ...x, unitCostNet: String(product.cost_price), costVatRate: String(product.cost_vat_rate ?? product.vat_rate), vatRate: String(product.vat_rate), desi: String(product.desi), packagingNet: String(product.packaging_cost) }));
-    setOvr(Object.fromEntries(MARKETPLACES.map((m) => {
+    setOvr(Object.fromEntries(BASE_MARKETPLACES.map((m) => {
       const l = product.listings.find((x) => x.marketplace_name === m);
       return [m, { commissionRate: l?.commission_rate != null ? String(l.commission_rate) : '', carrier: l?.carrier ?? '', sameDayTag: !!l?.same_day_tag, fastTag: !!l?.fast_tag, handlingDays: l ? String(l.handling_days) : '', manualShippingNet: l?.manual_shipping_cost != null ? String(l.manual_shipping_cost) : '' }];
     })));
@@ -108,7 +108,7 @@ export default function PricingPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {MARKETPLACES.map((m) => (
+          {BASE_MARKETPLACES.map((m) => (
             <label key={m} className={cx('flex items-center gap-1.5 border rounded-lg px-2 py-1 cursor-pointer text-xs', mps.includes(m) ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200')}>
               <input type="checkbox" className="accent-indigo-600" checked={mps.includes(m)} onChange={(e) => setMps((s) => (e.target.checked ? [...s, m] : s.filter((x) => x !== m)))} />
               <MarketplaceBadge name={m} size="xs" />
