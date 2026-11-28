@@ -475,6 +475,7 @@ function ItemList({ items, price }: { items: Item[]; price?: boolean }) {
               <div className="text-slate-400 mt-0.5">Stok kodu: <span className="font-mono text-slate-500">{i.sku || '—'}</span></div>
               {i.product?.barcode && <div className="text-slate-400">Barkod: <span className="font-mono text-slate-500">{i.product.barcode}</span></div>}
               {v && <div className="text-slate-500">{v}</div>}
+              {!i.product && <a href="/products?catalog=1" className="text-[11px] text-amber-700 hover:underline">Bu ürün panelde kayıtlı değil — fotoğraf için ürünleri çekin</a>}
             </div>
             {price && <div className="text-xs tabular-nums text-slate-700 whitespace-nowrap pl-2">{tl2(i.unit_price)}</div>}
           </li>

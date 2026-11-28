@@ -79,19 +79,22 @@ export default function DashboardPage() {
           {!data.recent.length && <p className="px-5 py-10 text-sm text-slate-500 text-center">Henüz sipariş yok.</p>}
           <ul className="divide-y divide-slate-100">
             {data.recent.map((o) => {
-              const first = o.items[0];
               const deadline = (Array.isArray(o.cost) ? o.cost[0] : o.cost)?.deadline;
               const left = OPEN.includes(o.status) && deadline ? leftText(deadline) : null;
               return (
                 <li key={o.id}>
                   <Link href={`/orders?orderNo=${encodeURIComponent(o.external_order_id.split('/')[0])}`} className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-slate-50">
-                    <Thumb src={first?.product?.image_url} more={o.items.length - 1} />
+                    <span className="flex gap-1.5 shrink-0">
+                      {o.items.slice(0, 3).map((it, k) => <Thumb key={k} src={it.product?.image_url} more={k === 2 ? o.items.length - 3 : 0} />)}
+                    </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <MarketplaceBadge name={o.marketplace_name} size="xs" />
                         <span className="text-[11px] text-slate-400 font-mono truncate">#{o.external_order_id.split('/')[0]}</span>
                       </div>
-                      <div className="text-sm font-medium text-slate-800 line-clamp-2 mt-0.5">{first ? `${first.quantity > 1 ? `${first.quantity}× ` : ''}${first.product_title}` : '—'}</div>
+                      {o.items.length ? o.items.slice(0, 3).map((it, k) => (
+                        <div key={k} className={cx('text-sm font-medium text-slate-800 mt-0.5', o.items.length > 1 ? 'truncate' : 'line-clamp-2')}>{it.quantity > 1 ? `${it.quantity}× ` : ''}{it.product_title}</div>
+                      )) : <div className="text-sm text-slate-400 mt-0.5">—</div>}
                       <div className="text-[11px] text-slate-400 truncate">{o.customer_name} · {fmtDate(o.order_date)}</div>
                     </div>
                     <div className="text-right shrink-0 space-y-1">
@@ -207,7 +210,7 @@ function CardHead({ title, href, link }: { title: string; href: string; link: st
 function Thumb({ src, more = 0, small }: { src?: string | null; more?: number; small?: boolean }) {
   return (
     <span className="relative shrink-0">
-      <ProductImage src={src} px={small ? 160 : 240} className={cx('rounded-lg border border-slate-200', small ? 'w-14 h-[72px]' : 'w-[72px] h-24')} />
+      <ProductImage src={src} px={small ? 160 : 240} className={cx('rounded-lg border border-slate-200', small ? 'w-14 h-[72px]' : 'w-14 h-[72px] sm:w-[72px] sm:h-24')} />
       {more > 0 && <span className="absolute bottom-0 right-0 bg-slate-900/70 text-white text-[10px] font-semibold px-1 rounded-tl rounded-br-lg">+{more}</span>}
     </span>
   );

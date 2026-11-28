@@ -1,5 +1,6 @@
 import { handle } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
+import { withProductImages } from '@/lib/orders/images';
 import { ORDER_STATUSES, OPEN_STATUSES } from '@/lib/marketplaces/meta';
 import { getInvoicingSettings } from '@/lib/invoicing/service';
 
@@ -53,7 +54,7 @@ export const GET = handle(async () => {
     invoiceMissingP,
     db().from('v_stock_breakdown').select('id, sku, title, image_url, total_stock, low_stock_threshold', { count: 'exact' }).eq('is_critical', true).order('total_stock').limit(8),
     db().from('orders')
-      .select('id, external_order_id, marketplace_name, customer_name, total_amount, status, order_date, cost:order_costs(deadline), items:order_items(product_title, quantity, product:products(image_url))')
+      .select('id, external_order_id, marketplace_name, customer_name, total_amount, status, order_date, cost:order_costs(deadline), items:order_items(id, sku, product_title, quantity, product:products(id, image_url, barcode, variant_attrs))')
       .order('order_date', { ascending: false }).limit(8),
     topP,
     db().from('marketplace_listings').select('listing_status, last_pushed_stock, product:products!inner(total_stock, safety_stock)').neq('listing_status', 'passive'),
@@ -65,7 +66,7 @@ export const GET = handle(async () => {
   const statusCounts = Object.fromEntries(statusPairs);
   const critical = must(criticalRes) as unknown[];
   const criticalCount = criticalRes.count ?? critical.length;
-  const recent = must(recentRes);
+  const recent = await withProductImages(must(recentRes) as unknown as Array<{ id: string }>);
   const listings = must(ls) as unknown as Array<{ listing_status: string; last_pushed_stock: number | null; product: { total_stock: number; safety_stock: number | null } }>;
   const health = {
     products,

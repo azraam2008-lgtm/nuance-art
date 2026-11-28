@@ -1,5 +1,6 @@
 import { handle } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
+import { withProductImages } from '@/lib/orders/images';
 import { isMarketplace, isOrderStatus, OPEN_STATUSES, ORDER_TABS, type OrderStatus } from '@/lib/marketplaces/meta';
 
 export const dynamic = 'force-dynamic';
@@ -70,7 +71,7 @@ export const GET = handle(async (req: Request) => {
     let query = db()
       .from('orders')
       .select(`id, external_order_id, marketplace_name, customer_name, total_amount, status, order_date, shipped_at, carrier, tracking_number, invoice_number, return_reason, t1:raw->>cargoTrackingNumber, t2:raw->>trackingNumber, t3:raw->>cargoCode, t4:raw->>trackingInfoCode, c1:raw->>cargoProviderName,
-        items:order_items(sku, product_title, quantity, unit_price, product:products(id, image_url, barcode, variant_attrs)),
+        items:order_items(id, sku, product_title, quantity, unit_price, product:products(id, image_url, barcode, variant_attrs)),
         cost:order_costs${deadline ? '!inner' : ''}(net_profit, status, margin_on_revenue, same_day_eligible, same_day_met, fast_eligible, fast_met, deadline)${inv ? ', invoice:invoices(status, invoice_number, last_error)' : ''}`, { count: 'exact' })
       .order(sortCol, { ascending: SORTS[sort].asc, nullsFirst: false })
       .range(page * pageSize, page * pageSize + pageSize - 1);
@@ -114,6 +115,7 @@ export const GET = handle(async (req: Request) => {
     const [orderNumber, packageNo] = o.external_order_id.split('/');
     return { ...o, order_number: orderNumber, package_no: packageNo ?? null, delivery_no: t1 || t2 || t3 || t4 || o.tracking_number || null, carrier: o.carrier || c1 || null };
   });
+  await withProductImages(orders as unknown as Array<{ id: string }>);
   return { orders, total: count ?? 0, page, pageSize, lateCount: await lateP, tabCounts: await countsP };
 });
 
