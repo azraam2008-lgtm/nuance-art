@@ -2,15 +2,16 @@
 import { useEffect, useState } from 'react';
 import { BASE_MARKETPLACES, MARKETPLACE_META, baseOf, isMarketplace, isSecondAccount, type MarketplaceName } from '@/lib/marketplaces/meta';
 
-type Info = { list: MarketplaceName[]; names: Record<string, string> };
+type Info = { list: MarketplaceName[]; names: Record<string, string>; connected: MarketplaceName[] };
 let cache: Promise<Info> | null = null;
-const load = () => (cache ??= fetch('/api/credentials').then((r) => r.json()).then((d: { credentials?: Array<{ marketplace: string; extraConfig?: Record<string, unknown> }> }) => ({
+const load = () => (cache ??= fetch('/api/credentials').then((r) => r.json()).then((d: { credentials?: Array<{ marketplace: string; mode?: string; extraConfig?: Record<string, unknown> }> }) => ({
+  connected: (d.credentials ?? []).filter((c) => c.mode && c.mode !== 'off').map((c) => c.marketplace).filter(isMarketplace),
   list: (d.credentials ?? []).map((c) => c.marketplace).filter(isMarketplace),
   names: Object.fromEntries((d.credentials ?? []).filter((c) => c.extraConfig?.accountName).map((c) => [c.marketplace, String(c.extraConfig!.accountName)])),
-})).catch(() => { cache = null; return { list: [...BASE_MARKETPLACES], names: {} }; }));
+})).catch(() => { cache = null; return { list: [...BASE_MARKETPLACES], names: {}, connected: [] }; }));
 
 function useInfo(): Info {
-  const [info, setInfo] = useState<Info>({ list: [...BASE_MARKETPLACES], names: {} });
+  const [info, setInfo] = useState<Info>({ list: [...BASE_MARKETPLACES], names: {}, connected: [] });
   useEffect(() => {
     let alive = true;
     load().then((i) => { if (alive && i.list.length) setInfo(i); });
@@ -39,3 +40,6 @@ export function useUnnamedTwins(): MarketplaceName[] {
   const { list, names } = useInfo();
   return list.filter((m) => isSecondAccount(m)).map((m) => baseOf(m) as MarketplaceName).filter((b) => !names[b] || !names[`${b}_2`]);
 }
+
+/** Bağlı mağazalar (siparişlerdeki hızlı mağaza seçimi için); hiç bağlı yoksa boş */
+export const useConnectedMarketplaces = (): MarketplaceName[] => useInfo().connected;
