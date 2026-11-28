@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { BASE_MARKETPLACES, MARKETPLACE_META, isMarketplace, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { BASE_MARKETPLACES, MARKETPLACE_META, baseOf, isMarketplace, type MarketplaceName } from '@/lib/marketplaces/meta';
 
 type Info = { list: MarketplaceName[]; names: Record<string, string> };
 let cache: Promise<Info> | null = null;
@@ -20,8 +20,16 @@ function useInfo(): Info {
 }
 /** Filtre listeleri için: ana pazaryerleri + bu mağazaya eklenmiş ikinci mağazalar (trendyol_2…) */
 export const useMarketplaces = (): MarketplaceName[] => useInfo().list;
-/** Pazaryeri etiketi + kullanıcının verdiği mağaza adı: "Trendyol 2 · Berezza" */
+/** Ayarlar'da mağaza adı değişince listeleri tazelemek için */
+export const refreshMarketplaceNames = () => { cache = null; };
+const baseLabel = (m: string) => (isMarketplace(m) ? MARKETPLACE_META[baseOf(m)].label : m);
+/** Filtre etiketi: firma adı girilmişse "Berezza · Trendyol", yoksa "Trendyol" / "Trendyol 2" */
 export function useMarketplaceLabel(): (m: string) => string {
   const { names } = useInfo();
-  return (m: string) => `${isMarketplace(m) ? MARKETPLACE_META[m].label : m}${names[m] ? ` · ${names[m]}` : ''}`;
+  return (m: string) => (names[m] ? `${names[m]} · ${baseLabel(m)}` : isMarketplace(m) ? MARKETPLACE_META[m].label : m);
+}
+/** Rozetler için kısa ad: firma adı varsa o ("Nisa Home Tekstil"), yoksa pazaryeri adı */
+export function useMarketplaceShortName(): (m: string) => string {
+  const { names } = useInfo();
+  return (m: string) => names[m] || (isMarketplace(m) ? MARKETPLACE_META[m].label : m);
 }

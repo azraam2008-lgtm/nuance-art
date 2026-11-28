@@ -174,6 +174,17 @@ export const isClosedStatus = (s: string) => s === 'cancelled' || s === 'returne
 /** Henüz kargoya verilmemiş açık durumlar (geciken sipariş kontrolü için) */
 export const OPEN_STATUSES: OrderStatus[] = ['new', 'approved', 'preparing', 'invoiced'];
 
+/** Siparişler sayfasının sekmeleri (Trendyol düzenine benzer) */
+export const ORDER_TABS = [
+  { key: 'all', label: 'Tüm Siparişler', statuses: [] as OrderStatus[] },
+  { key: 'new', label: 'Yeni', statuses: ['new'] as OrderStatus[] },
+  { key: 'processing', label: 'İşleme Alınanlar', statuses: ['approved', 'preparing', 'invoiced'] as OrderStatus[] },
+  { key: 'shipped', label: 'Kargoda', statuses: ['shipped'] as OrderStatus[] },
+  { key: 'delivered', label: 'Teslim Edilen', statuses: ['delivered'] as OrderStatus[] },
+  { key: 'closed', label: 'İptal / İade', statuses: ['cancelled', 'returned'] as OrderStatus[] },
+] as const;
+export type OrderTab = (typeof ORDER_TABS)[number]['key'];
+
 /** Sık görülen iade nedenleri (iade analizi için) */
 export const RETURN_REASONS = ['Ürün hasarlı geldi', 'Yanlış ürün gönderildi', 'Beğenmedi / vazgeçti', 'Ürün açıklamayla uyuşmuyor', 'Beden / ölçü uymadı', 'Geç teslim', 'Diğer'] as const;
 
