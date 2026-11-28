@@ -20,7 +20,7 @@ function useInfo(): Info {
 }
 /** Filtre listeleri için: ana pazaryerleri + bu mağazaya eklenmiş ikinci mağazalar (trendyol_2…) */
 export const useMarketplaces = (): MarketplaceName[] => useInfo().list;
-/** Pazaryeri etiketi + kullanıcının verdiği mağaza adı: "Trendyol 2 · Berra Tekstil" */
+/** Pazaryeri etiketi + kullanıcının verdiği mağaza adı: "Trendyol 2 · Berezza" */
 export function useMarketplaceLabel(): (m: string) => string {
   const { names } = useInfo();
   return (m: string) => `${isMarketplace(m) ? MARKETPLACE_META[m].label : m}${names[m] ? ` · ${names[m]}` : ''}`;

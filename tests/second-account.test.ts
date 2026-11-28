@@ -34,7 +34,7 @@ async function main() {
   assert.equal(nev.total_stock, 10, 'ortak stok: en düşük');
   const ls = tables.marketplace_listings.filter((l) => l.product_id === nev.id);
   assert.deepEqual(ls.map((l) => l.marketplace_name).sort(), ['trendyol', 'trendyol_2']);
-  assert.equal(ls.find((l) => l.marketplace_name === 'trendyol_2')!.price_override, 520, 'Berra fiyatı korunur');
+  assert.equal(ls.find((l) => l.marketplace_name === 'trendyol_2')!.price_override, 520, 'Berezza fiyatı korunur');
   console.log('second-account.test.ts: tüm kontroller geçti');
 }
 main().catch((e) => { console.error(e); process.exit(1); });

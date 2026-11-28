@@ -40,7 +40,12 @@ export class TrendyolAdapter implements MarketplaceAdapter {
         this.url('/product/sellers/{sellerId}/products?page=0&size=1'), { headers: this.headers, retries: 0 });
       return { ok: true, message: `Bağlantı başarılı. Mağazada ${res?.totalElements ?? 0} ürün var.` };
     } catch (e) {
-      return { ok: false, message: errorMessage(e) };
+      const m = errorMessage(e);
+      if (/HTTP 401/.test(m)) {
+        return { ok: false, message: `Trendyol kimlik doğrulama hatası (Satıcı ID ${this.c.sellerId}). Satıcı ID, API Key ve API Secret aynı mağazaya ait olmalı: bağlayacağınız mağazanın Trendyol paneline girip Hesap Bilgilerim → Entegrasyon Bilgileri'ndeki üç bilgiyi birlikte kopyalayın. API Key ile API Secret'ın yer değiştirmediğinden ve başında/sonunda boşluk olmadığından emin olun. (${m.slice(0, 120)})` };
+      }
+      if (/HTTP 403/.test(m)) return { ok: false, message: `Trendyol erişim izni vermedi. Entegrasyon Bilgileri sayfasında API erişiminin açık olduğunu kontrol edin. (${m.slice(0, 120)})` };
+      return { ok: false, message: m };
     }
   }
 
