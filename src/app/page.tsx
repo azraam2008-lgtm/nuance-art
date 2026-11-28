@@ -47,7 +47,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4 sm:space-y-6 fade-in">
       {h.products === 0 && (
-        <Card className="p-6 flex flex-wrap items-center gap-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+        <Card className="p-6 flex flex-wrap items-center gap-4 bg-gradient-to-r from-indigo-700 to-indigo-500 text-white">
           <PackagePlus className="w-8 h-8 text-amber-300" />
           <div className="flex-1"><div className="font-semibold">Ürünlerinizi panele alın</div><div className="text-sm text-slate-300">Pazaryerlerinde zaten ürünleriniz varsa tek tuşla hepsini çekin; aynı ürünler birleştirilir. Yoksa ilk ürününüzü ekleyin, tüm bağlı pazaryerlerine gitsin.</div></div>
           <Link href="/products?catalog=1" className="rounded-lg bg-amber-400 text-slate-900 font-medium px-4 py-2 text-sm">Pazaryerlerinden çek</Link>
@@ -91,7 +91,7 @@ export default function DashboardPage() {
                   <YAxis tickFormatter={compact} tick={{ fontSize: 11 }} width={56} />
                   <Tooltip formatter={(v: number, n: string) => [tl2(v), MARKETPLACE_META[n as MarketplaceName]?.label ?? n]} />
                   <Legend formatter={(v: string) => MARKETPLACE_META[v as MarketplaceName]?.label ?? v} wrapperStyle={{ fontSize: 12 }} />
-                  {active.map((m) => <Bar key={m} dataKey={m} stackId="a" fill={MARKETPLACE_META[m].color} />)}
+                  {active.map((m) => <Bar key={m} dataKey={m} stackId="a" fill={MARKETPLACE_META[m].chart} />)}
                 </BarChart>
               ) : (
                 <LineChart data={data.daily}>
@@ -100,7 +100,7 @@ export default function DashboardPage() {
                   <YAxis tickFormatter={compact} tick={{ fontSize: 11 }} width={56} />
                   <Tooltip formatter={(v: number, n: string) => [tl2(v), MARKETPLACE_META[n as MarketplaceName]?.label ?? n]} />
                   <Legend formatter={(v: string) => MARKETPLACE_META[v as MarketplaceName]?.label ?? v} wrapperStyle={{ fontSize: 12 }} />
-                  {active.map((m) => <Line key={m} type="monotone" dataKey={m} stroke={MARKETPLACE_META[m].color} strokeWidth={2} dot={false} />)}
+                  {active.map((m) => <Line key={m} type="monotone" dataKey={m} stroke={MARKETPLACE_META[m].chart} strokeWidth={2} dot={false} />)}
                 </LineChart>
               )}
             </ResponsiveContainer>
@@ -113,20 +113,20 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={dist} dataKey="revenue" nameKey="marketplace" innerRadius="60%" outerRadius="90%" paddingAngle={2}>
-                  {dist.map((d) => <Cell key={d.marketplace} fill={MARKETPLACE_META[d.marketplace].color} />)}
+                  {dist.map((d) => <Cell key={d.marketplace} fill={MARKETPLACE_META[d.marketplace].chart} />)}
                 </Pie>
                 <Tooltip formatter={(v: number, n: string) => [tl2(v), MARKETPLACE_META[n as MarketplaceName]?.label ?? n]} />
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <ul className="mt-4 space-y-1.5 text-sm">
+          <ul className="mt-4 space-y-1.5 text-xs sm:text-sm">
             {!dist.length && <p className="text-sm text-slate-500 text-center">Bu ay henüz satış yok.</p>}
             {dist.map((d) => (
               <li key={d.marketplace} className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-sm" style={{ background: MARKETPLACE_META[d.marketplace].color }} />
-                <span className="flex-1">{MARKETPLACE_META[d.marketplace].label}</span>
-                <span className="text-slate-500">{tl(d.revenue)}</span>
-                <span className="w-14 text-right font-medium">%{(d.share * 100).toFixed(1)}</span>
+                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: MARKETPLACE_META[d.marketplace].chart }} />
+                <span className="flex-1 min-w-0 truncate">{MARKETPLACE_META[d.marketplace].label}</span>
+                <span className="text-slate-500 whitespace-nowrap">{tl(d.revenue)}</span>
+                <span className="w-12 shrink-0 text-right font-medium">%{(d.share * 100).toFixed(1)}</span>
               </li>
             ))}
           </ul>

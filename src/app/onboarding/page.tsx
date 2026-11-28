@@ -67,9 +67,9 @@ function Wizard() {
   const stepLabel = (s: Step) => s === 'pick' ? 'Pazaryerlerinizi seçin' : s === 'done' ? 'Hazır' : MARKETPLACE_META[s].label;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      <aside className="w-72 shrink-0 bg-slate-900 text-slate-300 p-6 hidden md:flex flex-col">
-        <div className="flex items-center gap-3 mb-8"><BrandMark size={36} /><BrandName light /></div>
+    <div className="min-h-screen app-bg flex">
+      <aside className="w-72 shrink-0 bg-white border-r border-slate-200 text-slate-600 p-6 hidden md:flex flex-col">
+        <div className="flex items-center gap-3 mb-8"><BrandMark size={36} /><BrandName /></div>
         <div className="text-xs uppercase tracking-wide text-slate-500 mb-3">Kurulum</div>
         <ol className="space-y-1">
           {steps.map((s, i) => {
@@ -77,8 +77,8 @@ function Wizard() {
             const done = isMp ? connected.includes(s as MarketplaceName) : i < idx;
             return (
               <li key={s}>
-                <button onClick={() => setStep(s)} className={cx('w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left', s === step ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60')}>
-                  <span className={cx('w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0', done ? 'bg-emerald-500 text-white' : 'border border-slate-600')}>
+                <button onClick={() => setStep(s)} className={cx('w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left', s === step ? 'bg-indigo-50 text-indigo-700 font-medium' : 'hover:bg-slate-50')}>
+                  <span className={cx('w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0', done ? 'bg-emerald-500 text-white' : 'border border-slate-300')}>
                     {done ? <Check className="w-3 h-3" /> : i + 1}
                   </span>
                   <span className="flex-1">{stepLabel(s)}</span>

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Activity, Boxes, Lightbulb, ListChecks, Receipt, Calculator, LayoutDashboard, LogOut, Megaphone, Menu, Package, Plus, PlusCircle, Scale, Settings, ShoppingCart, TrendingUp, UserCog, X, Zap, Store, Radio } from 'lucide-react';
 import StoreSwitcher from './StoreSwitcher';
+import { accentVars } from '@/lib/theme';
 import { BASE_MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { LiveProvider, ToastProvider, api, useLive, useLiveData, useToast } from './live';
 import { Button, MarketplaceBadge, cx } from './ui';
@@ -30,7 +31,7 @@ const BARE = ['/orders/labels', '/login', '/setup', '/signup', '/forgot', '/rese
 const isActive = (path: string, n: { href: string; exact?: boolean }) =>
   n.href === '/' ? path === '/' : n.exact ? path === n.href : path.startsWith(n.href) && !(n.href === '/products' && path === '/products/new');
 
-interface Status { user: { email: string; name: string; role?: string } | null; onboarded: boolean; companyName: string | null; demoMode: boolean }
+interface Status { accent?: string; user: { email: string; name: string; role?: string } | null; onboarded: boolean; companyName: string | null; demoMode: boolean }
 
 export default function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
@@ -48,6 +49,8 @@ export default function Shell({ children }: { children: ReactNode }) {
     if (bare) return;
     fetch('/api/auth/status').then((r) => r.json()).then((s: Status) => {
       setStatus(s);
+      // Mağazanın rengi: tüm vurgu renkleri (düğmeler, seçili menü…) buna döner
+      if (s.accent) for (const [k, v] of Object.entries(accentVars(s.accent))) document.documentElement.style.setProperty(k, v);
       if (!s.user) router.replace('/login');
       else if (!s.onboarded) router.replace('/onboarding');
     }).catch(() => {});
@@ -143,40 +146,41 @@ function Sidebar({ status, onClose }: { status: Status; onClose?: () => void }) 
     window.location.href = '/login';
   }
   return (
-    <aside className="w-64 lg:w-60 shrink-0 bg-slate-900 text-slate-300 flex flex-col h-full overflow-y-auto">
-      <div className="px-5 py-5 border-b border-slate-800 flex items-center gap-3">
+    <aside className="w-64 lg:w-60 shrink-0 bg-white border-r border-slate-200 text-slate-600 flex flex-col h-full overflow-y-auto">
+      <div className="px-4 py-4 border-b border-slate-100 flex items-center gap-3 bg-indigo-50/60">
         <StoreSwitcher name={status.companyName || 'Mağazam'} />
-        {onClose && <button onClick={onClose} className="ml-auto p-1.5 rounded hover:bg-slate-800" aria-label="Menüyü kapat"><X className="w-5 h-5" /></button>}
+        {onClose && <button onClick={onClose} className="ml-auto p-1.5 rounded hover:bg-slate-100" aria-label="Menüyü kapat"><X className="w-5 h-5" /></button>}
       </div>
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-0.5">
         {NAV.filter((n) => roleOf(status) !== 'staff' || !STAFF_HIDDEN.includes(n.href)).map((n) => {
           const active = isActive(path, n);
           const Icon = n.icon;
           return (
             <Link key={n.href} href={n.href}
-              className={cx('flex items-center gap-2.5 px-3 py-2.5 lg:py-2 rounded-lg text-sm hover:bg-slate-800 hover:text-white', active && 'bg-slate-800 text-white',
-                n.href === '/products/new' && !active && 'text-amber-200')}>
-              <Icon className={cx('w-4 h-4', active && 'text-amber-300')} />{n.label}
+              className={cx('flex items-center gap-2.5 px-3 py-2.5 lg:py-2 rounded-lg text-sm transition-colors',
+                active ? 'bg-indigo-50 text-indigo-700 font-medium' : 'hover:bg-slate-50 hover:text-slate-900',
+                n.href === '/products/new' && !active && 'text-indigo-600 font-medium')}>
+              <Icon className={cx('w-4 h-4', active ? 'text-indigo-600' : 'text-slate-400')} />{n.label}
             </Link>
           );
         })}
       </nav>
-      <div className="p-4 border-t border-slate-800 text-xs space-y-3">
-        <Link href="/settings" className="block hover:text-white">
+      <div className="p-4 border-t border-slate-100 text-xs space-y-3">
+        <Link href="/settings" className="block hover:text-slate-900">
           {live.length > 0 ? (
             <>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400" />{live.length} pazaryeri bağlı</div>
+              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />{live.length} pazaryeri bağlı</div>
               <div className="flex flex-wrap gap-1 mt-1.5">{live.map((c) => <MarketplaceBadge key={c.marketplace} name={c.marketplace} size="xs" />)}</div>
             </>
           ) : (
-            <div className="flex items-center gap-2 text-amber-300"><span className="w-2 h-2 rounded-full bg-amber-400" />Henüz pazaryeri bağlı değil</div>
+            <div className="flex items-center gap-2 text-amber-700"><span className="w-2 h-2 rounded-full bg-amber-400" />Henüz pazaryeri bağlı değil</div>
           )}
-          {status.demoMode && <div className="text-[11px] text-amber-400 mt-1">Deneme mağazası — tüm pazaryerleri simülasyon</div>}
+          {status.demoMode && <div className="text-[11px] text-amber-700 mt-1">Deneme mağazası — tüm pazaryerleri simülasyon</div>}
         </Link>
-        <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
-          <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-white text-[11px] font-semibold">{status.user!.name.slice(0, 1).toUpperCase()}</div>
-          <Link href="/account" title="Hesabım" className="flex-1 min-w-0 hover:text-white"><div className="text-slate-200 truncate">{status.user!.name}</div><div className="text-[10px] text-slate-500 truncate">{status.user!.email}</div></Link>
-          <button onClick={logout} title="Çıkış yap" className="p-1.5 rounded hover:bg-slate-800 hover:text-white"><LogOut className="w-4 h-4" /></button>
+        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+          <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] font-semibold">{status.user!.name.slice(0, 1).toUpperCase()}</div>
+          <Link href="/account" title="Hesabım" className="flex-1 min-w-0 hover:text-slate-900"><div className="text-slate-700 truncate">{status.user!.name}</div><div className="text-[10px] text-slate-400 truncate">{status.user!.email}</div></Link>
+          <button onClick={logout} title="Çıkış yap" className="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900"><LogOut className="w-4 h-4" /></button>
         </div>
       </div>
     </aside>
@@ -219,7 +223,7 @@ function Header({ demo, onMenu }: { demo: boolean; onMenu: () => void }) {
             <Button variant="secondary" onClick={simulate} loading={busy} className="hidden sm:inline-flex"><Zap className="w-4 h-4" /> Sipariş simüle et</Button>
           </>
         )}
-        {path !== '/products/new' && <Link href="/products/new" className="hidden lg:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium bg-slate-900 text-white hover:bg-slate-800"><PlusCircle className="w-4 h-4" /> Yeni Ürün</Link>}
+        {path !== '/products/new' && <Link href="/products/new" className="hidden lg:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700"><PlusCircle className="w-4 h-4" /> Yeni Ürün</Link>}
       </div>
     </header>
   );

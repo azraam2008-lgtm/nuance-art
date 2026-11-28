@@ -126,7 +126,7 @@ export default function StockPage() {
                   <th className="text-left px-4 py-3">Ürün</th>
                   <th className="text-right px-4 py-3">Başlangıç Stoğu</th>
                   {cols.map((m) => (
-                    <th key={m} className="text-right px-4 py-3 whitespace-nowrap"><span style={{ color: MARKETPLACE_META[m].color }}>{MARKETPLACE_META[m].label}</span></th>
+                    <th key={m} className="text-right px-4 py-3 whitespace-nowrap"><span style={{ color: MARKETPLACE_META[m].chart }}>{MARKETPLACE_META[m].label}</span></th>
                   ))}
                   <th className="text-right px-4 py-3">Kalan Net Stok</th>
                   <th />

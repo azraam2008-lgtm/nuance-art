@@ -4,6 +4,7 @@ import { activeUser } from '@/lib/auth/server';
 import { withStore } from '@/lib/tenant';
 import { mailConfigured } from '@/lib/auth/mail';
 import { isDemoStore } from '@/lib/demo';
+import { accentFor } from '@/lib/theme';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,7 @@ export async function GET() {
     const base = { mailConfigured: mailConfigured(), demoMode: process.env.DEMO_MODE === 'true' };
     if (!user) return NextResponse.json({ ...base, user: null, onboarded: false, companyName: null });
     return await withStore(user.storeId, async () => {
-      const { data } = await db().from('app_settings').select('key, value').in('key', ['onboarding', 'company']);
+      const { data } = await db().from('app_settings').select('key, value').in('key', ['onboarding', 'company', 'theme']);
       const rows = (data ?? []) as Array<{ key: string; value: Record<string, unknown> }>;
       const onboarding = rows.find((r) => r.key === 'onboarding')?.value as { completedAt?: string } | undefined;
       const company = rows.find((r) => r.key === 'company')?.value as { name?: string } | undefined;
@@ -49,6 +50,7 @@ export async function GET() {
         user: { email: user.email, name: user.name, role: user.role },
         onboarded: !!onboarding?.completedAt,
         companyName: company?.name ?? null,
+        accent: accentFor(user.storeId, (rows.find((r) => r.key === 'theme')?.value as { accent?: string } | undefined)?.accent).base,
       });
     }, user.id);
   } catch (e) {

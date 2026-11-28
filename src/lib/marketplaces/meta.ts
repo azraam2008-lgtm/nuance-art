@@ -28,6 +28,8 @@ export function withSecondAccounts<T>(base: Record<BaseMarketplace, T>, second: 
 export interface MarketplaceMeta {
   label: string;
   color: string;
+  /** Grafik ve rozetlerde kullanılan yumuşak ton */
+  chart: string;
   badgeClass: string;
   sellerIdLabel: string;
   apiKeyLabel: string;
@@ -42,6 +44,7 @@ const BASE_META: Record<BaseMarketplace, MarketplaceMeta> = {
   trendyol: {
     label: 'Trendyol',
     color: '#F27A1A',
+    chart: '#E0823F',
     badgeClass: 'bg-[#F27A1A] text-white',
     sellerIdLabel: 'Satıcı ID',
     apiKeyLabel: 'API Key',
@@ -53,6 +56,7 @@ const BASE_META: Record<BaseMarketplace, MarketplaceMeta> = {
   hepsiburada: {
     label: 'Hepsiburada',
     color: '#FF6000',
+    chart: '#CF6650',
     badgeClass: 'bg-black text-[#FF6000] ring-1 ring-[#FF6000]',
     sellerIdLabel: 'Merchant ID',
     apiKeyLabel: 'Kullanıcı adı',
@@ -64,6 +68,7 @@ const BASE_META: Record<BaseMarketplace, MarketplaceMeta> = {
   n11: {
     label: 'N11',
     color: '#7B2CBF',
+    chart: '#8A6BBE',
     badgeClass: 'bg-gradient-to-r from-[#7B2CBF] to-[#E11D48] text-white',
     sellerIdLabel: '-',
     apiKeyLabel: 'App Key',
@@ -75,6 +80,7 @@ const BASE_META: Record<BaseMarketplace, MarketplaceMeta> = {
   ciceksepeti: {
     label: 'Çiçeksepeti',
     color: '#1E88E5',
+    chart: '#4F8FD1',
     badgeClass: 'bg-[#1E88E5] text-white',
     sellerIdLabel: 'Satıcı ID',
     apiKeyLabel: 'API Key',
@@ -86,6 +92,7 @@ const BASE_META: Record<BaseMarketplace, MarketplaceMeta> = {
   pazarama: {
     label: 'Pazarama',
     color: '#0FA0DC',
+    chart: '#3FA7A0',
     badgeClass: 'bg-[#0FA0DC] text-white',
     sellerIdLabel: 'Satıcı ID',
     apiKeyLabel: 'API Key (Client ID)',
@@ -97,6 +104,7 @@ const BASE_META: Record<BaseMarketplace, MarketplaceMeta> = {
   idefix: {
     label: 'idefix',
     color: '#FFB300',
+    chart: '#CDA03D',
     badgeClass: 'bg-[#FFB300] text-slate-900',
     sellerIdLabel: 'Satıcı (Vendor) ID',
     apiKeyLabel: 'API Key',
@@ -108,6 +116,7 @@ const BASE_META: Record<BaseMarketplace, MarketplaceMeta> = {
   koctas: {
     label: 'Koçtaş',
     color: '#D7141E',
+    chart: '#BF5652',
     badgeClass: 'bg-[#D7141E] text-white',
     sellerIdLabel: 'Mağaza (Shop) ID (birden çok mağazanız varsa)',
     apiKeyLabel: 'API Anahtarı',
@@ -119,6 +128,7 @@ const BASE_META: Record<BaseMarketplace, MarketplaceMeta> = {
   etsy: {
     label: 'Etsy',
     color: '#F1641E',
+    chart: '#A97A52',
     badgeClass: 'bg-[#F1641E] text-white',
     sellerIdLabel: 'Mağaza numarası (Shop ID)',
     apiKeyLabel: 'Keystring',
@@ -129,8 +139,16 @@ const BASE_META: Record<BaseMarketplace, MarketplaceMeta> = {
   },
 };
 
+/** İki rengi karıştırır (t: 0 → a, 1 → b) */
+export function mixHex(a: string, b: string, t: number): string {
+  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+
 export const MARKETPLACE_META: Record<MarketplaceName, MarketplaceMeta> = withSecondAccounts(BASE_META, (_b, m) => ({
-  ...m, label: `${m.label} 2`, from: `${m.label} 2'den`, at: `${m.label} 2'de`,
+  // İkinci mağaza ana pazaryerinin daha koyu tonu: grafiklerde ve rozetlerde ayırt edilir
+  ...m, label: `${m.label} 2`, from: `${m.label} 2'den`, at: `${m.label} 2'de`, chart: mixHex(m.chart, '#1E2230', 0.38),
 }));
 
 export const ORDER_PREFIX: Record<MarketplaceName, string> = withSecondAccounts<string>({
