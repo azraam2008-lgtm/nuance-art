@@ -62,9 +62,11 @@ export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = withSecondAccou
     panelName: 'Hepsiburada Satıcı Paneli',
     steps: [
       'Hepsiburada Satıcı Paneli\'ne giriş yapın.',
-      'Hesabım → "Entegrasyon" (Entegratör Bilgileri) sayfasına gidin.',
-      'Merchant ID, kullanıcı adı ve servis anahtarını (secret key) kopyalayıp aşağıya yapıştırın.',
+      'Entegratör listesinde Kervan yoktur (Kervan "kendi yazılımınız" olarak bağlanır). Yardım → "Talep oluştur" → konu: "API Entegrasyon İşlemleri" seçin.',
+      'Talebe şunu yazın: "Kendi yazılımımla API entegrasyonu yapacağım. API kullanıcı adı, servis anahtarı (secret key) ve Merchant ID bilgilerimi iletir misiniz?"',
+      'Hepsiburada bilgileri e-postanıza gönderince Merchant ID, kullanıcı adı ve servis anahtarını aşağıya yapıştırın. (Hesabım → Entegrasyon sayfasında görünüyorsa oradan da kopyalayabilirsiniz.)',
     ],
+    note: 'Entegratör listesinde yalnızca Hepsiburada ile resmi anlaşması olan firmalar görünür. Kervan bu listede olmadan da sizin kendi API bilgilerinizle çalışır.',
     extra: [{ key: 'defaultCategoryId', label: 'Varsayılan kategori numarası', type: 'number', help: 'Ürün eklerken kategori listeden aranarak da seçilebilir.' }],
     needs: { secret: 'required', seller: 'required' },
     secretRequired: true,
