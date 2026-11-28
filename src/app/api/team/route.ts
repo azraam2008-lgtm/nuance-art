@@ -13,7 +13,13 @@ const ROLE_TR: Record<string, string> = { owner: 'Sahip', admin: 'Yönetici', st
 
 /** Ekip: üyeler, bekleyen davetler, son işlemler */
 export const GET = handle(async () => {
-  const members = must(await rawDb().from('app_users').select('id, name, email, role, created_at, last_login_at').eq('store_id', currentStoreId()).order('created_at'));
+  const home = must(await rawDb().from('app_users').select('id, name, email, role, created_at, last_login_at').eq('store_id', currentStoreId()).order('created_at')) as Array<{ id: string; role: string }>;
+  // Bu mağazaya "mağaza ekle" ile sahip olan / üye olan diğer kullanıcılar
+  const mem = must(await rawDb().from('store_members').select('user_id, role').eq('store_id', currentStoreId())) as Array<{ user_id: string; role: string }>;
+  const extraIds = mem.map((m) => m.user_id).filter((id) => !home.some((h) => h.id === id));
+  const extra = extraIds.length ? (must(await rawDb().from('app_users').select('id, name, email, role, created_at, last_login_at').in('id', extraIds)) as Array<{ id: string; role: string }>)
+    .map((u) => ({ ...u, role: mem.find((m) => m.user_id === u.id)?.role ?? u.role })) : [];
+  const members = [...extra, ...home];
   const invites = currentRole() === 'owner'
     ? must(await db().from('invites').select('id, email, role, expires_at, created_at').is('accepted_at', null).is('revoked_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }))
     : [];
@@ -59,6 +65,7 @@ export const POST = handle(async (req: Request) => {
     if (target.role === 'owner') throw new HttpError(400, 'Mağaza sahibi değiştirilemez.');
     if (b.action === 'role') {
       must(await rawDb().from('app_users').update({ role, session_version: (target.session_version ?? 0) + 1 }).eq('id', uid).select('id'));
+      await rawDb().from('store_members').update({ role }).eq('user_id', uid).eq('store_id', currentStoreId());
       await audit('Rol değişti', `${target.email} → ${ROLE_TR[role]}`);
     } else {
       must(await rawDb().from('app_users').delete().eq('id', uid).select('id'));
