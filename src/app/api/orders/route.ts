@@ -37,7 +37,10 @@ async function orderIdsByItems(opts: { product?: string; barcode?: string }): Pr
 // Tüm pazaryerlerinin siparişleri tek tabloda: sekme (durum grubu) + ayrıntılı filtre + sıralama + sayfalama
 export const GET = handle(async (req: Request) => {
   const sp = new URL(req.url).searchParams;
-  const marketplace = sp.get('marketplace');
+  // Bir veya birden çok mağaza: ?marketplace=trendyol,trendyol_2
+  const marketplaces = (sp.get('marketplace') ?? '').split(',').filter(isMarketplace);
+  // Mağaza düğmelerindeki sayılar için (seçili sekmeye göre)
+  const countFor = (sp.get('mps') ?? '').split(',').filter(isMarketplace).slice(0, 20);
   const status = sp.get('status');
   const tab = ORDER_TABS.find((t) => t.key === sp.get('tab'));
   const q = clean(sp.get('q'));
@@ -59,11 +62,12 @@ export const GET = handle(async (req: Request) => {
   const nowIso = now.toISOString();
   const endOfToday = new Date(`${new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(now)}T23:59:59+03:00`).toISOString();
   // Sayılar ana sorguyla aynı anda çalışır (sayfa daha hızlı açılır)
-  const countsP = tabCounts(marketplace);
+  const countsP = tabCounts(marketplaces);
+  const mpCountsP = marketplaceCounts(countFor, tab?.statuses ?? []);
   const lateP = Promise.resolve(db().from('orders').select('id, order_costs!inner(deadline)', { count: 'exact', head: true })
     .in('status', OPEN_STATUSES).is('shipped_at', null).lt('order_costs.deadline', nowIso)).then((r) => r.count ?? 0);
   const itemIds = product || barcode ? await orderIdsByItems({ product, barcode }) : null;
-  if (itemIds && !itemIds.length) return { orders: [], total: 0, page, pageSize, lateCount: await lateP, tabCounts: await countsP };
+  if (itemIds && !itemIds.length) return { orders: [], total: 0, page, pageSize, lateCount: await lateP, tabCounts: await countsP, marketplaceCounts: await mpCountsP };
 
   const needCost = !!deadline || sort.startsWith('deadline');
   // Fatura tablosu henüz kurulmadıysa (schema.sql 9h çalıştırılmadı) siparişler yine de listelenir
@@ -77,7 +81,7 @@ export const GET = handle(async (req: Request) => {
       .range(page * pageSize, page * pageSize + pageSize - 1);
     if (sortCol !== 'order_date') query = query.order('order_date', { ascending: false });
 
-    if (isMarketplace(marketplace)) query = query.eq('marketplace_name', marketplace);
+    if (marketplaces.length) query = query.in('marketplace_name', marketplaces);
     if (isOrderStatus(status)) query = query.eq('status', status);
     else if (tab && tab.statuses.length) query = query.in('status', [...tab.statuses]);
     // Kalan süreye göre sıralarken yalnızca kargoya verilmeyi bekleyenler (teslim edilen/iade listeyi kalabalıklaştırmasın)
@@ -116,16 +120,25 @@ export const GET = handle(async (req: Request) => {
     return { ...o, order_number: orderNumber, package_no: packageNo ?? null, delivery_no: t1 || t2 || t3 || t4 || o.tracking_number || null, carrier: o.carrier || c1 || null };
   });
   await withProductImages(orders as unknown as Array<{ id: string }>);
-  return { orders, total: count ?? 0, page, pageSize, lateCount: await lateP, tabCounts: await countsP };
+  return { orders, total: count ?? 0, page, pageSize, lateCount: await lateP, tabCounts: await countsP, marketplaceCounts: await mpCountsP };
 });
 
 /** Sekmelerdeki sayılar (pazaryeri/mağaza filtresi uygulanır) */
-async function tabCounts(marketplace: string | null): Promise<Record<string, number>> {
+async function tabCounts(marketplaces: string[]): Promise<Record<string, number>> {
   const one = async (statuses: readonly OrderStatus[]) => {
     let q = db().from('orders').select('id', { count: 'exact', head: true });
-    if (isMarketplace(marketplace)) q = q.eq('marketplace_name', marketplace);
+    if (marketplaces.length) q = q.in('marketplace_name', marketplaces);
     if (statuses.length) q = q.in('status', [...statuses]);
     return (await q).count ?? 0;
   };
   return Object.fromEntries(await Promise.all(ORDER_TABS.map(async (t) => [t.key, await one(t.statuses)] as const)));
+}
+
+/** Her mağazanın seçili sekmedeki sipariş sayısı */
+async function marketplaceCounts(list: string[], statuses: readonly OrderStatus[]): Promise<Record<string, number>> {
+  return Object.fromEntries(await Promise.all(list.map(async (m) => {
+    let q = db().from('orders').select('id', { count: 'exact', head: true }).eq('marketplace_name', m);
+    if (statuses.length) q = q.in('status', [...statuses]);
+    return [m, (await q).count ?? 0] as const;
+  })));
 }

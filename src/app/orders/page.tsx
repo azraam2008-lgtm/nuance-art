@@ -5,8 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import { ArrowUpDown, CheckSquare, ChevronLeft, ChevronRight, FileText, Filter, Printer, RotateCcw, Search, Truck, X } from 'lucide-react';
 import CostBreakdown, { ProfitBadge } from '@/components/CostBreakdown';
 import InvoiceModal from '@/components/InvoiceModal';
-import { useMarketplaceLabel, useMarketplaces } from '@/components/useMarketplaces';
-import { MARKETPLACE_META, ORDER_STATUSES, ORDER_STATUS_META, ORDER_TABS, RETURN_REASONS, isClosedStatus, type OrderStatus } from '@/lib/marketplaces/meta';
+import { useConnectedMarketplaces, useMarketplaceShortName, useMarketplaces } from '@/components/useMarketplaces';
+import { BASE_MARKETPLACES, MARKETPLACE_META, baseOf, isSecondAccount, mixHex, type MarketplaceName, ORDER_STATUSES, ORDER_STATUS_META, ORDER_TABS, RETURN_REASONS, isClosedStatus, type OrderStatus } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Empty, ErrorBox, Field, MarketplaceBadge, Modal, PageLoader, ProductImage, cx, fixImageUrl, fmtDate, inputClass, tl2 } from '@/components/ui';
 
@@ -76,7 +76,11 @@ function OrdersInner() {
   const spKey = sp.toString();
   const staff = useIsStaff();
   const mpList = useMarketplaces();
-  const mpLabel = useMarketplaceLabel();
+  const shortName = useMarketplaceShortName();
+  const connected = useConnectedMarketplaces();
+  // İkinci mağaza ana mağazanın hemen yanında
+  const chipList = [...(connected.length ? connected : mpList)].sort((a, b) =>
+    BASE_MARKETPLACES.indexOf(baseOf(a)) - BASE_MARKETPLACES.indexOf(baseOf(b)) || Number(isSecondAccount(a)) - Number(isSecondAccount(b)));
   const [init] = useState(() => fromUrl(new URLSearchParams(spKey)));
   const [tab, setTab] = useState(init.tab);
   const [draft, setDraft] = useState<Filters>(init.filters);
@@ -108,12 +112,14 @@ function OrdersInner() {
     if (Object.values(u.filters).some(Boolean)) setShowFilters(true);
   }, [spKey]);
   useEffect(() => { setSelected(new Set()); }, [tab, filters, sort, page]);
-  const activeCount = Object.values(filters).filter(Boolean).length;
+  const activeCount = Object.entries(filters).filter(([k, v]) => k !== 'marketplace' && v).length;
+  const selectedStores = filters.marketplace ? filters.marketplace.split(',').filter(Boolean) as MarketplaceName[] : [];
+  const setStores = (list: string[]) => { const f = { ...filters, marketplace: list.join(',') }; setFilters(f); setDraft((d) => ({ ...d, marketplace: f.marketplace })); setPage(0); };
   const applyFilters = () => { setFilters(draft); setPage(0); };
-  const clearFilters = () => { setDraft(EMPTY); setFilters(EMPTY); setPage(0); };
+  const clearFilters = () => { const keep = { ...EMPTY, marketplace: filters.marketplace }; setDraft(keep); setFilters(keep); setPage(0); };
 
-  const params = new URLSearchParams({ page: String(page), pageSize: '50', tab, sort, ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) });
-  const { data, error, loading, reload } = useLiveData<{ orders: Order[]; total: number; pageSize: number; lateCount?: number; tabCounts?: Record<string, number> }>(`/api/orders?${params}`);
+  const params = new URLSearchParams({ page: String(page), pageSize: '50', tab, sort, ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)), ...(chipList.length > 1 && { mps: chipList.join(',') }) });
+  const { data, error, loading, reload } = useLiveData<{ orders: Order[]; total: number; pageSize: number; lateCount?: number; tabCounts?: Record<string, number>; marketplaceCounts?: Record<string, number> }>(`/api/orders?${params}`);
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
   const orders = data?.orders ?? [];
   const chosen = orders.filter((o) => selected.has(o.id));
@@ -230,6 +236,31 @@ function OrdersInner() {
         )}
       </Modal>
 
+      {/* Mağaza seçimi: dokununca hemen süzülür, birden çok seçilebilir */}
+      {chipList.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-slate-500 shrink-0">Mağaza:</span>
+          <button onClick={() => setStores([])}
+            className={cx('shrink-0 rounded-full border px-3 py-1.5 text-sm transition-colors', !selectedStores.length ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400')}>
+            Tümü
+          </button>
+          {chipList.map((m) => {
+            const on = selectedStores.includes(m);
+            const color = MARKETPLACE_META[m].chart;
+            const n = data?.marketplaceCounts?.[m];
+            return (
+              <button key={m} onClick={() => setStores(on ? selectedStores.filter((x) => x !== m) : [...selectedStores, m])} aria-pressed={on}
+                className={cx('shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors', on ? 'text-white' : 'bg-white text-slate-700 hover:border-slate-400', isSecondAccount(m) && !on && 'border-dashed')}
+                style={on ? { background: color, borderColor: color } : { borderColor: mixHex(color, '#FFFFFF', 0.4) }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: on ? '#fff' : color }} />
+                {shortName(m)}
+                {n != null && <span className={cx('text-xs rounded-full px-1.5', on ? 'bg-white/25' : 'bg-slate-100 text-slate-500')}>{n.toLocaleString('tr-TR')}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Sekmeler: durum grupları ve sayıları */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto scroll-thin">
         <div className="flex min-w-max">
@@ -265,10 +296,6 @@ function OrdersInner() {
               <FilterInput label="Barkod" value={draft.barcode} onChange={(v) => setDraft({ ...draft, barcode: v })} />
               <FilterInput label="Kargo takip kodu" value={draft.tracking} onChange={(v) => setDraft({ ...draft, tracking: v })} />
               <FilterInput label="Ürün adı / model kodu" value={draft.product} onChange={(v) => setDraft({ ...draft, product: v })} />
-              <FilterSelect label="Mağaza" value={draft.marketplace} onChange={(v) => setDraft({ ...draft, marketplace: v })}>
-                <option value="">Tüm mağazalar</option>
-                {mpList.map((m) => <option key={m} value={m}>{mpLabel(m)}</option>)}
-              </FilterSelect>
               <FilterSelect label="Kargoya teslim süresi" value={draft.deadline} onChange={(v) => setDraft({ ...draft, deadline: v })}>
                 <option value="">Tümü</option>
                 <option value="late">Süresi geçenler</option>
