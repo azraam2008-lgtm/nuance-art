@@ -1,7 +1,7 @@
 import { handle, HttpError, readJson } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
 import { decryptSecret } from '@/lib/crypto';
-import { isMarketplace } from '@/lib/marketplaces/meta';
+import { MARKETPLACE_META, baseOf, isMarketplace, isSecondAccount, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { createAdapter } from '@/lib/marketplaces/registry';
 import { hasRequiredKeys } from '@/lib/marketplaces/guides';
 
@@ -19,6 +19,13 @@ export const POST = handle(async (req: Request) => {
   const sellerId = (b.sellerId ?? stored?.seller_id ?? '').trim();
   const apiSecret = (b.apiSecret || (stored?.api_secret ? decryptSecret(stored.api_secret) : '')).trim();
   if (!hasRequiredKeys(b.marketplace, { apiKey, apiSecret, sellerId })) throw new HttpError(400, 'Test için gerekli bilgileri girin.');
+
+  // Aynı pazaryerinin diğer mağazasının (ör. Trendyol ↔ Trendyol 2) anahtarı yanlışlıkla girilmiş mi?
+  const twin = isSecondAccount(b.marketplace) ? baseOf(b.marketplace) : `${b.marketplace}_2`;
+  const { data: other } = await db().from('marketplace_credentials').select('api_key, seller_id').eq('marketplace_name', twin).maybeSingle();
+  if (other?.api_key && other.api_key.trim() === apiKey) {
+    return { ok: false, message: `Bu API Key ${MARKETPLACE_META[twin as MarketplaceName].label} kartında zaten kayıtlı. Her mağazanın kendi Satıcı ID, API Key ve API Secret bilgisi vardır: diğer mağazanın ${MARKETPLACE_META[baseOf(b.marketplace)].label} paneline girip onun API bilgilerini kopyalayın.`, mode: 'live' };
+  }
 
   const adapter = createAdapter(b.marketplace, { apiKey, apiSecret, sellerId, extra: b.extraConfig ?? stored?.extra_config ?? {} }, true);
   if (!adapter) throw new HttpError(400, 'Gerekli bilgiler eksik.');
