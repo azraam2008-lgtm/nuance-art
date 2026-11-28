@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { refreshMarketplaceNames } from './useMarketplaces';
 import { CheckCircle2, ChevronDown, ExternalLink, Link2, Plug, XCircle } from 'lucide-react';
 import { MARKETPLACE_META, baseOf, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { GUIDES, hasRequiredKeys } from '@/lib/marketplaces/guides';
@@ -70,6 +71,7 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
     setSaving(true);
     try {
       await api('/api/credentials', { method: 'PUT', body: { marketplace: mp, apiKey, apiSecret: apiSecret || undefined, sellerId, isActive: activate && hasRequiredKeys(mp, { apiKey, apiSecret, hasSecret: cred.hasSecret, sellerId }), extraConfig: extraConfig() } });
+      refreshMarketplaceNames();
       setApiSecret('');
       toast(activate ? `${meta.label} bağlandı.` : `${meta.label} bağlantısı kapatıldı.`);
       onSaved?.(activate);

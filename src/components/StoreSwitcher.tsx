@@ -7,7 +7,7 @@ import { BRAND } from '@/lib/brand';
 
 interface Store { id: string; name: string; role: string; isDemo: boolean; accent?: string }
 
-/** Yan menünün üstü: mağaza adı; tıklayınca diğer mağazalara geçiş, yeni mağaza ekleme ve toplu özet */
+/** Üst çubuğun solu (telefonda menünün üstü): mağaza adı; tıklayınca diğer mağazalara geçiş, yeni mağaza ekleme ve toplu özet */
 export default function StoreSwitcher({ name }: { name: string }) {
   const [open, setOpen] = useState(false);
   const [stores, setStores] = useState<{ current: string; stores: Store[] } | null>(null);
@@ -32,7 +32,7 @@ export default function StoreSwitcher({ name }: { name: string }) {
 
   return (
     <div ref={ref} className="relative min-w-0 flex-1">
-      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-3 text-left rounded-lg hover:bg-white/70 -m-1 p-1" aria-haspopup="menu" aria-expanded={open}>
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-3 text-left rounded-lg hover:bg-slate-50 -m-1 p-1" aria-haspopup="menu" aria-expanded={open}>
         <StoreMark name={name} size={34} />
         <div className="leading-tight min-w-0 flex-1">
           <div className="text-slate-900 font-semibold truncate">{name}</div>
@@ -41,7 +41,7 @@ export default function StoreSwitcher({ name }: { name: string }) {
         <ChevronsUpDown className="w-4 h-4 text-slate-400 shrink-0" />
       </button>
       {open && (
-        <div role="menu" className="absolute z-50 left-0 right-0 mt-2 rounded-xl bg-white text-slate-800 shadow-2xl ring-1 ring-slate-200 overflow-hidden">
+        <div role="menu" className="absolute z-50 left-0 right-0 lg:right-auto lg:w-72 mt-2 rounded-xl bg-white text-slate-800 shadow-2xl ring-1 ring-slate-200 overflow-hidden">
           <div className="px-3 pt-2.5 pb-1 text-[11px] font-semibold text-slate-400">MAĞAZALARIM</div>
           {!stores ? <div className="px-3 py-2 text-sm text-slate-400">Yükleniyor…</div> : stores.stores.map((s) => (
             <button key={s.id} disabled={s.id === stores.current || !!busy} onClick={() => go(s.id)}

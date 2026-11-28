@@ -7,6 +7,7 @@ import { useMarketplaceLabel, useMarketplaces } from '@/components/useMarketplac
 import { useLiveData } from '@/components/live';
 import { Card, ErrorBox, MarketplaceBadge, PageLoader, cx, fmtDate, inputClass, tl, tl2 } from '@/components/ui';
 import CostBreakdown from '@/components/CostBreakdown';
+import RevenueTrend from '@/components/RevenueTrend';
 
 type Agg = { revenue_gross: number; revenue_net: number; commission: number; fees: number; shipping: number; tax: number; product_cost: number; other: number; net_profit: number; orders: number; cancelled: number; estimates: number };
 interface Report {
@@ -59,7 +60,7 @@ export default function ProfitPage() {
           ))}
         </div>
         <select className={`${inputClass} !w-auto`} value={mp} onChange={(e) => setMp(e.target.value)}>
-          <option value="">Tüm pazaryerleri</option>
+          <option value="">Tüm mağazalar</option>
           {mpList.map((m) => <option key={m} value={m}>{mpLabel(m)}</option>)}
         </select>
         <span className="text-xs text-slate-500">{from} — {to}</span>
@@ -89,6 +90,8 @@ export default function ProfitPage() {
             <Kpi label="Kaçırılan hızlı gönderim" value={String(data.missed.sameDay + data.missed.fast)} accent={data.missed.sameDay + data.missed.fast ? 'text-amber-600' : ''}
               sub={data.missed.extraCost ? `~${tl(data.missed.extraCost)} fazladan hizmet bedeli` : 'Termin performansı iyi'} />
           </div>
+
+          {!mp && <RevenueTrend />}
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
             <Card className="lg:col-span-3 p-5">

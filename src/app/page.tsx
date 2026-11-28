@@ -1,193 +1,214 @@
 'use client';
-import { useIsStaff } from '@/components/role';
 import Link from 'next/link';
-import { useState } from 'react';
-import { AlertTriangle, PackagePlus, PiggyBank, ShoppingCart, Trophy, Wallet } from 'lucide-react';
-import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from 'recharts';
-import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName, type OrderStatus } from '@/lib/marketplaces/meta';
+import type { ReactNode } from 'react';
+import { AlarmClock, AlertTriangle, ArrowRight, Boxes, ClipboardList, FileText, Inbox, Package, PackagePlus, RotateCcw, Timer, Truck } from 'lucide-react';
+import { type OrderStatus } from '@/lib/marketplaces/meta';
 import { useLiveData } from '@/components/live';
-import { Card, ErrorBox, MarketplaceBadge, PageLoader, StatusBadge, cx, fmtDate, tl, tl2 } from '@/components/ui';
+import { Card, ErrorBox, MarketplaceBadge, PageLoader, StatusBadge, cx, fmtDate, tl2 } from '@/components/ui';
 
 interface Dashboard {
-  health: { products: number; outOfStock: number; pending: number; errors: number; unsynced: number; jobsFailed?: number; jobsPending?: number; lateOrders?: number };
-  kpis: { monthRevenue: number; monthOrders: number; topMarketplace: MarketplaceName | null; topMarketplaceRevenue: number; criticalCount: number; monthNetProfit: number; monthEstimates: number };
-  distribution: Array<{ marketplace: MarketplaceName; revenue: number; share: number }>;
-  monthly: Array<Record<string, number | string>>;
-  daily: Array<Record<string, number | string>>;
-  critical: Array<{ id: string; sku: string; title: string; total_stock: number; low_stock_threshold: number }>;
-  recent: Array<{ id: string; external_order_id: string; marketplace_name: string; customer_name: string; total_amount: number; status: OrderStatus; order_date: string; items: Array<{ product_title: string; quantity: number }> }>;
+  actions: { statusCounts: Record<string, number>; late: number; dueToday: number; returns30: number; invoiceMissing: number | null; criticalCount: number };
+  health: { products: number; outOfStock: number; pending: number; errors: number; unsynced: number; jobsFailed?: number };
+  critical: Array<{ id: string; sku: string; title: string; image_url: string | null; total_stock: number; low_stock_threshold: number }>;
+  recent: Array<{
+    id: string; external_order_id: string; marketplace_name: string; customer_name: string; total_amount: number; status: OrderStatus; order_date: string;
+    cost: { deadline: string | null } | Array<{ deadline: string | null }> | null;
+    items: Array<{ product_title: string; quantity: number; product: { image_url: string | null } | null }>;
+  }>;
+  top: Array<{ id: string; sku: string; title: string; image_url: string | null; total_stock: number; units: number; revenue: number }>;
 }
 
-const compact = (v: number) => new Intl.NumberFormat('tr-TR', { notation: 'compact', maximumFractionDigits: 1 }).format(v) + ' ₺';
+const OPEN = ['new', 'approved', 'preparing', 'invoiced'];
 
+/** Ana sayfa: Trendyol satıcı paneli gibi önce "yapılacaklar" — siparişler ve kritik stok. Ciro ve kâr Raporlar › Kârlılık'ta. */
 export default function DashboardPage() {
-  const staff = useIsStaff();
   const { data, error, loading, reload } = useLiveData<Dashboard>('/api/dashboard');
-  const [range, setRange] = useState<'monthly' | 'daily'>('monthly');
   if (loading) return <PageLoader />;
   if (error || !data) return <ErrorBox error={error ?? 'Bilinmeyen hata'} onRetry={reload} />;
-  const { kpis } = data;
-  const monthName = new Date().toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
-
+  const a = data.actions;
+  const c = a.statusCounts;
   const h = data.health;
-  // Yalnızca satışı olan pazaryerleri grafikte gösterilir
-  const active = MARKETPLACES.filter((m) => [...data.monthly, ...data.daily].some((r) => Number(r[m] ?? 0) > 0));
-  const dist = data.distribution.filter((d) => d.revenue > 0);
+  const processing = (c.approved ?? 0) + (c.preparing ?? 0) + (c.invoiced ?? 0);
+
   const alerts = [
-    (h.lateOrders ?? 0) > 0 && { href: '/orders', cls: 'bg-rose-50 text-rose-800 border-rose-200', text: `${h.lateOrders} siparişin kargoya teslim süresi geçti — Siparişler'de "Geciken" filtresiyle görün.` },
-    (h.jobsFailed ?? 0) > 0 && { href: '/operations', cls: 'bg-rose-50 text-rose-800 border-rose-200', text: `${h.jobsFailed} işlem pazaryerine gönderilemedi — İşlem Merkezi'nde nedenini görün ve tekrar deneyin.` },
-    (h.jobsPending ?? 0) > 0 && { href: '/operations', cls: 'bg-amber-50 text-amber-800 border-amber-200', text: `${h.jobsPending} işlem otomatik olarak tekrar denenecek.` },
-    h.outOfStock > 0 && { href: '/stock', cls: 'bg-rose-50 text-rose-800 border-rose-200', text: `${h.outOfStock} ürün tükendi — tüm pazaryerlerinde stok 0.` },
-    h.unsynced + h.errors > 0 && { href: '/stock', cls: 'bg-rose-50 text-rose-800 border-rose-200', text: `${h.unsynced + h.errors} ilanda stok/yayın sorunu var — Stok sayfasından "Tümünü eşitle".` },
-    h.pending > 0 && { href: '/products', cls: 'bg-amber-50 text-amber-800 border-amber-200', text: `${h.pending} ilan pazaryeri onayı bekliyor (otomatik kontrol ediliyor).` },
-  ].filter(Boolean) as Array<{ href: string; cls: string; text: string }>;
+    (h.jobsFailed ?? 0) > 0 && { href: '/operations', text: `${h.jobsFailed} işlem pazaryerine gönderilemedi — İşlem Merkezi'nde nedenini görün.` },
+    h.unsynced + h.errors > 0 && { href: '/stock', text: `${h.unsynced + h.errors} ilanda stok/yayın sorunu var — Stok sayfasından "Tümünü eşitle".` },
+    h.pending > 0 && { href: '/products', text: `${h.pending} ilan pazaryeri onayı bekliyor.` },
+  ].filter(Boolean) as Array<{ href: string; text: string }>;
 
   return (
-    <div className="space-y-4 sm:space-y-6 fade-in">
+    <div className="space-y-5 sm:space-y-6 fade-in">
       {h.products === 0 && (
-        <Card className="p-6 flex flex-wrap items-center gap-4 bg-gradient-to-r from-indigo-700 to-indigo-500 text-white">
+        <Card className="p-5 sm:p-6 flex flex-wrap items-center gap-4 bg-gradient-to-r from-indigo-700 to-indigo-500 text-white border-0">
           <PackagePlus className="w-8 h-8 text-amber-300" />
-          <div className="flex-1"><div className="font-semibold">Ürünlerinizi panele alın</div><div className="text-sm text-slate-300">Pazaryerlerinde zaten ürünleriniz varsa tek tuşla hepsini çekin; aynı ürünler birleştirilir. Yoksa ilk ürününüzü ekleyin, tüm bağlı pazaryerlerine gitsin.</div></div>
+          <div className="flex-1 min-w-[220px]"><div className="font-semibold">Ürünlerinizi panele alın</div><div className="text-sm text-white/80">Pazaryerlerinde zaten ürünleriniz varsa tek tuşla hepsini çekin; aynı ürünler birleştirilir.</div></div>
           <Link href="/products?catalog=1" className="rounded-lg bg-amber-400 text-slate-900 font-medium px-4 py-2 text-sm">Pazaryerlerinden çek</Link>
-          <Link href="/products/new" className="rounded-lg border border-slate-500 text-white font-medium px-4 py-2 text-sm">Yeni Ürün Ekle</Link>
+          <Link href="/products/new" className="rounded-lg border border-white/50 text-white font-medium px-4 py-2 text-sm">Yeni Ürün Ekle</Link>
         </Card>
       )}
-      {alerts.length > 0 && (
-        <div className="space-y-2">
-          {alerts.map((a) => <Link key={a.text} href={a.href} className={cx('flex items-center gap-2 border rounded-xl px-4 py-2.5 text-sm', a.cls)}><AlertTriangle className="w-4 h-4" />{a.text}</Link>)}
+
+      {/* Aksiyonlar */}
+      <section>
+        <SectionTitle title="Aksiyonlar" hint="Bugün ilgilenmeniz gerekenler" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+          <Action href="/orders?tab=new" icon={<Inbox className="w-5 h-5" />} label="Yeni Siparişler" value={c.new ?? 0} tone="indigo" />
+          <Action href="/orders?tab=processing" icon={<ClipboardList className="w-5 h-5" />} label="İşleme Alınanlar" value={processing} tone="sky" />
+          <Action href="/orders?deadline=today" icon={<Timer className="w-5 h-5" />} label="Bugün Kargolanmalı" value={a.dueToday} tone="amber" />
+          <Action href="/orders?deadline=late" icon={<AlarmClock className="w-5 h-5" />} label="Kargo Süresi Geçen" value={a.late} tone="rose" />
+          {a.invoiceMissing !== null
+            ? <Action href="/orders?invoice=missing" icon={<FileText className="w-5 h-5" />} label="Kesilmesi Gereken Fatura" value={a.invoiceMissing} tone="violet" />
+            : <Action href="/orders?tab=shipped" icon={<Truck className="w-5 h-5" />} label="Kargodaki Siparişler" value={c.shipped ?? 0} tone="violet" />}
+          <Action href="/orders?tab=closed" icon={<RotateCcw className="w-5 h-5" />} label="İadeler (30 gün)" value={a.returns30} tone="fuchsia" />
+        </div>
+      </section>
+
+      {(alerts.length > 0 || h.outOfStock > 0) && (
+        <div className="flex flex-wrap gap-2">
+          {h.outOfStock > 0 && <Link href="/stock" className="inline-flex items-center gap-1.5 text-xs sm:text-sm rounded-full bg-rose-50 border border-rose-200 text-rose-800 px-3 py-1.5"><AlertTriangle className="w-3.5 h-3.5" />{h.outOfStock} ürün tükendi</Link>}
+          {alerts.map((x) => <Link key={x.text} href={x.href} className="inline-flex items-center gap-1.5 text-xs sm:text-sm rounded-full bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5"><AlertTriangle className="w-3.5 h-3.5" />{x.text}</Link>)}
         </div>
       )}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-        <Kpi icon={<Wallet className="w-4 h-4" />} accent="bg-indigo-50 text-indigo-600" label="Bu Ayki Toplam Ciro" value={tl(kpis.monthRevenue)} sub={monthName} />
-        {!staff && <Link href="/profit" className="block h-full"><Kpi icon={<PiggyBank className="w-4 h-4" />} accent={kpis.monthNetProfit < 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'} label="Bu Ayki Net Kâr"
-          value={tl(kpis.monthNetProfit)} sub={kpis.monthRevenue ? `Marj ~%${((kpis.monthNetProfit / (kpis.monthRevenue / 1.2)) * 100).toFixed(1)} · ${kpis.monthEstimates} tahmini` : 'Komisyon, kargo, bedeller sonrası'} /></Link>}
-        <Kpi icon={<ShoppingCart className="w-4 h-4" />} accent="bg-blue-50 text-blue-600" label="Toplam Sipariş Sayısı" value={kpis.monthOrders.toLocaleString('tr-TR')} sub="Bu ay, iptaller hariç" />
-        <Kpi icon={<Trophy className="w-4 h-4" />} accent="bg-orange-50 text-orange-600" label="En Çok Satan Pazaryeri"
-          value={kpis.topMarketplace ? MARKETPLACE_META[kpis.topMarketplace].label : '—'} sub={kpis.topMarketplace ? `${tl(kpis.topMarketplaceRevenue)} bu ay` : 'Bu ay satış yok'} />
-        <Kpi wide icon={<AlertTriangle className="w-4 h-4" />} accent={kpis.criticalCount ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}
-          label="Kritik Stoktaki Ürün" value={String(kpis.criticalCount)} sub={kpis.criticalCount ? 'Eşik altında — tedarik gerekli' : 'Tüm ürünler güvende'} />
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2 p-4 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <h3 className="font-semibold">Ciro Trendi (Pazaryeri Kırılımlı)</h3>
-            <div className="inline-flex bg-slate-100 rounded-lg p-0.5 text-xs">
-              {(['monthly', 'daily'] as const).map((r) => (
-                <button key={r} onClick={() => setRange(r)} className={cx('px-3 py-1 rounded-md', range === r && 'bg-white shadow-sm')}>
-                  {r === 'monthly' ? 'Aylık (12 ay)' : 'Günlük (30 gün)'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="h-60 sm:h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              {range === 'monthly' ? (
-                <BarChart data={data.monthly}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={compact} tick={{ fontSize: 11 }} width={56} />
-                  <Tooltip formatter={(v: number, n: string) => [tl2(v), MARKETPLACE_META[n as MarketplaceName]?.label ?? n]} />
-                  <Legend formatter={(v: string) => MARKETPLACE_META[v as MarketplaceName]?.label ?? v} wrapperStyle={{ fontSize: 12 }} />
-                  {active.map((m) => <Bar key={m} dataKey={m} stackId="a" fill={MARKETPLACE_META[m].chart} />)}
-                </BarChart>
-              ) : (
-                <LineChart data={data.daily}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={3} />
-                  <YAxis tickFormatter={compact} tick={{ fontSize: 11 }} width={56} />
-                  <Tooltip formatter={(v: number, n: string) => [tl2(v), MARKETPLACE_META[n as MarketplaceName]?.label ?? n]} />
-                  <Legend formatter={(v: string) => MARKETPLACE_META[v as MarketplaceName]?.label ?? v} wrapperStyle={{ fontSize: 12 }} />
-                  {active.map((m) => <Line key={m} type="monotone" dataKey={m} stroke={MARKETPLACE_META[m].chart} strokeWidth={2} dot={false} />)}
-                </LineChart>
-              )}
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <h3 className="font-semibold mb-3">Ciro Dağılımı (Bu Ay)</h3>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={dist} dataKey="revenue" nameKey="marketplace" innerRadius="60%" outerRadius="90%" paddingAngle={2}>
-                  {dist.map((d) => <Cell key={d.marketplace} fill={MARKETPLACE_META[d.marketplace].chart} />)}
-                </Pie>
-                <Tooltip formatter={(v: number, n: string) => [tl2(v), MARKETPLACE_META[n as MarketplaceName]?.label ?? n]} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <ul className="mt-4 space-y-1.5 text-xs sm:text-sm">
-            {!dist.length && <p className="text-sm text-slate-500 text-center">Bu ay henüz satış yok.</p>}
-            {dist.map((d) => (
-              <li key={d.marketplace} className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: MARKETPLACE_META[d.marketplace].chart }} />
-                <span className="flex-1 min-w-0 truncate">{MARKETPLACE_META[d.marketplace].label}</span>
-                <span className="text-slate-500 whitespace-nowrap">{tl(d.revenue)}</span>
-                <span className="w-12 shrink-0 text-right font-medium">%{(d.share * 100).toFixed(1)}</span>
-              </li>
-            ))}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
+        {/* Son siparişler */}
+        <Card className="lg:col-span-2 overflow-hidden">
+          <CardHead title="Son Siparişler" href="/orders" link="Tüm siparişler" />
+          {!data.recent.length && <p className="px-5 py-10 text-sm text-slate-500 text-center">Henüz sipariş yok.</p>}
+          <ul className="divide-y divide-slate-100">
+            {data.recent.map((o) => {
+              const first = o.items[0];
+              const deadline = (Array.isArray(o.cost) ? o.cost[0] : o.cost)?.deadline;
+              const left = OPEN.includes(o.status) && deadline ? leftText(deadline) : null;
+              return (
+                <li key={o.id}>
+                  <Link href={`/orders?orderNo=${encodeURIComponent(o.external_order_id.split('/')[0])}`} className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-slate-50">
+                    <Thumb src={first?.product?.image_url} more={o.items.length - 1} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <MarketplaceBadge name={o.marketplace_name} size="xs" />
+                        <span className="text-[11px] text-slate-400 font-mono truncate">#{o.external_order_id.split('/')[0]}</span>
+                      </div>
+                      <div className="text-sm font-medium text-slate-800 truncate mt-0.5">{first ? `${first.quantity > 1 ? `${first.quantity}× ` : ''}${first.product_title}` : '—'}</div>
+                      <div className="text-xs text-slate-500 truncate">{o.customer_name} · {fmtDate(o.order_date)}</div>
+                    </div>
+                    <div className="text-right shrink-0 space-y-1">
+                      <div className="text-sm font-semibold tabular-nums">{tl2(o.total_amount)}</div>
+                      {left ? <span className={cx('inline-block text-[10px] font-medium rounded-full px-1.5 py-0.5', left.cls)}>{left.text}</span> : <StatusBadge status={o.status} />}
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </Card>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-semibold">Son Siparişler</h3>
-            <Link href="/orders" className="text-sm text-indigo-600">Tümünü gör →</Link>
-          </div>
-          <ul className="divide-y divide-slate-100 text-sm">
-            {data.recent.map((o) => (
-              <li key={o.id}>
-                <Link href="/orders" className="flex items-center gap-3 px-4 sm:px-5 py-2.5 hover:bg-slate-50">
-                  <MarketplaceBadge name={o.marketplace_name} />
+        {/* Kritik stok */}
+        <Card className="overflow-hidden">
+          <CardHead title={`Kritik Stok${a.criticalCount ? ` (${a.criticalCount})` : ''}`} href="/stock" link="Stok" />
+          {!data.critical.length && <p className="px-5 py-10 text-sm text-emerald-700 text-center">Kritik seviyede ürün yok. 👍</p>}
+          <ul className="divide-y divide-slate-100">
+            {data.critical.map((p) => (
+              <li key={p.id}>
+                <Link href={`/products/${p.id}`} className="flex items-center gap-3 px-4 sm:px-5 py-2.5 hover:bg-slate-50">
+                  <Thumb src={p.image_url} small />
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{o.customer_name}</div>
-                    <div className="text-xs text-slate-500 truncate">{o.items.map((i) => `${i.quantity}x ${i.product_title}`).join(', ')}</div>
+                    <div className="text-sm truncate">{p.title}</div>
+                    <div className="text-[11px] text-slate-400 font-mono truncate">{p.sku} · eşik {p.low_stock_threshold}</div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-medium tabular-nums">{tl2(o.total_amount)}</div>
-                    <div className="text-[11px] text-slate-500 whitespace-nowrap sm:hidden">{new Date(o.order_date).toLocaleDateString('tr-TR')}</div>
-                  </div>
-                  <span className="shrink-0"><StatusBadge status={o.status} /></span>
-                  <span className="hidden sm:block text-xs text-slate-500 whitespace-nowrap w-28 text-right">{fmtDate(o.order_date)}</span>
+                  <span className={cx('text-xs font-bold rounded-full px-2 py-0.5', p.total_stock <= 0 ? 'bg-rose-600 text-white' : 'bg-amber-100 text-amber-800')}>{p.total_stock <= 0 ? 'Tükendi' : p.total_stock}</span>
                 </Link>
               </li>
             ))}
           </ul>
         </Card>
-        <Card>
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-semibold">Kritik Stok</h3>
-            <Link href="/stock" className="text-sm text-indigo-600">Stok havuzu →</Link>
-          </div>
-          <ul className="divide-y divide-slate-100 text-sm">
-            {!data.critical.length && <li className="px-5 py-6 text-slate-500 text-center">Kritik seviyede ürün yok.</li>}
-            {data.critical.map((p) => (
-              <li key={p.id} className="px-5 py-2.5 flex items-center gap-3">
-                <div className="flex-1 min-w-0"><div className="truncate">{p.title}</div><div className="text-xs text-slate-500 font-mono">{p.sku} · eşik {p.low_stock_threshold}</div></div>
-                <span className="bg-rose-600 text-white text-xs font-bold rounded-full px-2 py-0.5">{p.total_stock}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
       </div>
+
+      {/* Ürün performansım */}
+      <section>
+        <SectionTitle title="Ürün Performansım" hint="Son 30 günde en çok satanlar" href="/products" link="Ürünler" />
+        {!data.top.length ? (
+          <Card className="px-5 py-8 text-sm text-slate-500 text-center">Son 30 günde satış yok.</Card>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {data.top.map((p, i) => (
+              <Link key={p.id} href={`/products/${p.id}`} className="group bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+                <div className="relative aspect-square bg-slate-100">
+                  {p.image_url
+                    ? <img src={p.image_url} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform" />
+                    : <span className="absolute inset-0 flex items-center justify-center text-slate-300"><Package className="w-8 h-8" /></span>}
+                  <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-white/90 text-slate-800 text-xs font-bold flex items-center justify-center shadow-sm">{i + 1}</span>
+                </div>
+                <div className="p-2.5">
+                  <div className="text-xs font-medium text-slate-800 line-clamp-2 min-h-[2rem]">{p.title}</div>
+                  <div className="flex items-center justify-between mt-1.5 text-[11px]">
+                    <span className="text-indigo-700 font-semibold">{p.units} satış</span>
+                    <span className={cx('inline-flex items-center gap-0.5', p.total_stock <= 0 ? 'text-rose-600' : 'text-slate-500')}><Boxes className="w-3 h-3" />{p.total_stock}</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
 
-function Kpi({ icon, accent, label, value, sub, wide }: { icon: React.ReactNode; accent: string; label: string; value: string; sub: string; wide?: boolean }) {
+function leftText(deadline: string): { text: string; cls: string } {
+  const ms = new Date(deadline).getTime() - Date.now();
+  const hours = Math.floor(Math.abs(ms) / 3_600_000);
+  const span = hours >= 24 ? `${Math.floor(hours / 24)} gün ${hours % 24} sa` : `${Math.max(1, hours)} sa`;
+  if (ms < 0) return { text: `${span} gecikti`, cls: 'bg-rose-100 text-rose-700' };
+  return { text: `${span} kaldı`, cls: ms < 24 * 3_600_000 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700' };
+}
+
+const TONES = {
+  indigo: 'bg-indigo-50 text-indigo-600',
+  sky: 'bg-sky-50 text-sky-600',
+  amber: 'bg-amber-50 text-amber-600',
+  rose: 'bg-rose-50 text-rose-600',
+  violet: 'bg-violet-50 text-violet-600',
+  fuchsia: 'bg-fuchsia-50 text-fuchsia-600',
+};
+
+function Action({ href, icon, label, value, tone }: { href: string; icon: ReactNode; label: string; value: number; tone: keyof typeof TONES }) {
+  const urgent = value > 0 && tone === 'rose';
   return (
-    <Card className={cx('p-3 sm:p-5 h-full', wide && 'col-span-2 lg:col-span-1')}>
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-xs sm:text-sm text-slate-500 leading-tight">{label}</span>
-        <span className={cx('w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0', accent)}>{icon}</span>
+    <Link href={href} className={cx('group bg-white rounded-xl border p-3 sm:p-4 flex flex-col gap-2 hover:shadow-md hover:-translate-y-0.5 transition-all', urgent ? 'border-rose-300' : 'border-slate-200')}>
+      <div className="flex items-center justify-between">
+        <span className={cx('w-9 h-9 rounded-lg flex items-center justify-center', TONES[tone])}>{icon}</span>
+        <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
       </div>
-      <div className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2 truncate">{value}</div>
-      <div className="text-xs text-slate-500 mt-1">{sub}</div>
-    </Card>
+      <div className={cx('text-2xl font-bold tabular-nums', urgent ? 'text-rose-600' : value ? 'text-slate-900' : 'text-slate-300')}>{value.toLocaleString('tr-TR')}</div>
+      <div className="text-xs sm:text-sm text-slate-600 leading-tight">{label}</div>
+    </Link>
+  );
+}
+
+function SectionTitle({ title, hint, href, link }: { title: string; hint?: string; href?: string; link?: string }) {
+  return (
+    <div className="flex items-end justify-between gap-2 mb-2.5">
+      <div><h2 className="font-semibold text-slate-900">{title}</h2>{hint && <p className="text-xs text-slate-500">{hint}</p>}</div>
+      {href && <Link href={href} className="text-sm text-indigo-600 whitespace-nowrap">{link} →</Link>}
+    </div>
+  );
+}
+
+function CardHead({ title, href, link }: { title: string; href: string; link: string }) {
+  return (
+    <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+      <h3 className="font-semibold">{title}</h3>
+      <Link href={href} className="text-sm text-indigo-600">{link} →</Link>
+    </div>
+  );
+}
+
+function Thumb({ src, more = 0, small }: { src?: string | null; more?: number; small?: boolean }) {
+  const size = small ? 'w-10 h-10' : 'w-12 h-12';
+  return (
+    <span className={cx('relative shrink-0 rounded-lg bg-slate-100 border border-slate-100 overflow-hidden flex items-center justify-center text-slate-300', size)}>
+      {src ? <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" /> : <Package className="w-5 h-5" />}
+      {more > 0 && <span className="absolute bottom-0 right-0 bg-slate-900/70 text-white text-[9px] font-semibold px-1 rounded-tl">+{more}</span>}
+    </span>
   );
 }
