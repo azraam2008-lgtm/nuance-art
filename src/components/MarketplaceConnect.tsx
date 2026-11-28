@@ -16,7 +16,7 @@ export interface Cred {
  * Bir pazaryerini bağlama formu: "anahtarı nereden alırım" adımları, alanlar, bağlantı testi, kaydet.
  * Başlangıç sihirbazında ve Ayarlar > API Bağlantıları'nda kullanılır.
  */
-export default function MarketplaceConnect({ cred, onSaved, compact, back = 'settings' }: { cred: Cred; onSaved?: (connected: boolean) => void; compact?: boolean; back?: 'settings' | 'onboarding' }) {
+export default function MarketplaceConnect({ cred, onSaved, compact, back = 'settings', requireName }: { cred: Cred; onSaved?: (connected: boolean) => void; compact?: boolean; back?: 'settings' | 'onboarding'; requireName?: boolean }) {
   const toast = useToast();
   const mp = cred.marketplace;
   const meta = MARKETPLACE_META[mp];
@@ -44,6 +44,7 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
     return out;
   };
   const missing = () => {
+    if (requireName && !accountName.trim()) return 'Mağaza adı';
     if (!apiKey.trim()) return meta.apiKeyLabel;
     if (guide.needs.seller === 'required' && !sellerId.trim()) return meta.sellerIdLabel;
     if (guide.needs.secret === 'required' && !apiSecret && !cred.hasSecret) return meta.apiSecretLabel;
@@ -100,7 +101,7 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="sm:col-span-2">
-          <Field label="Mağaza adı (isteğe bağlı)" hint={`Aynı pazaryerinde birden fazla mağazanız varsa ayırt etmek için, ör. "Nisa Home Tekstil"`}>
+          <Field label={requireName ? 'Mağaza adı (zorunlu)' : 'Mağaza adı (isteğe bağlı)'} hint={requireName ? `Bu pazaryerinde iki mağazanız var. Panelde "${meta.label}" yerine bu ad görünür; satıcı panelinde yazan mağaza adını girin, ör. "Nisa Home Tekstil"` : `Aynı pazaryerinde birden fazla mağazanız varsa ayırt etmek için, ör. "Nisa Home Tekstil"`}>
             <input className={inputClass} value={accountName} onChange={(e) => setAccountName(e.target.value)} maxLength={60} />
           </Field>
         </div>

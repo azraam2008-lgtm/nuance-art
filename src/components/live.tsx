@@ -6,7 +6,7 @@ import { browserClient } from '@/lib/supabase/browser';
  * Canlı güncelleme: Supabase Realtime "panel" broadcast kanalı.
  * DB tetikleyicileri her değişiklikte yalnızca "refresh" sinyali yollar;
  * sayfalar bu sinyalde verilerini API'den yeniden çeker.
- * Realtime yapılandırılmamışsa 15 sn'lik yoklamaya düşer.
+ * Realtime yapılandırılmamışsa 45 sn'lik yoklamaya düşer.
  * ------------------------------------------------------------- */
 
 const LiveContext = createContext<{ version: number; connected: boolean; bump: () => void }>({ version: 0, connected: false, bump: () => {} });
@@ -32,8 +32,12 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   }, [bump]);
 
   useEffect(() => {
-    const id = setInterval(() => setVersion((v) => v + 1), connected ? 60_000 : 15_000);
-    return () => clearInterval(id);
+    // Sekme arka plandayken yenileme yapılmaz; görünür olunca hemen tazelenir (sunucuyu boşuna yormaz)
+    const tick = () => { if (document.visibilityState === 'visible') setVersion((v) => v + 1); };
+    const onVisible = () => { if (document.visibilityState === 'visible') setVersion((v) => v + 1); };
+    document.addEventListener('visibilitychange', onVisible);
+    const id = setInterval(tick, connected ? 120_000 : 45_000);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, [connected]);
 
   return <LiveContext.Provider value={{ version, connected, bump }}>{children}</LiveContext.Provider>;

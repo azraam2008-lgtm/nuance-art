@@ -1,13 +1,14 @@
 'use client';
 import { useIsStaff } from '@/components/role';
-import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowUpDown, CheckSquare, ChevronLeft, ChevronRight, FileText, Filter, Package, Printer, RotateCcw, Search, Truck, X } from 'lucide-react';
+import { Suspense, useEffect, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { ArrowUpDown, CheckSquare, ChevronLeft, ChevronRight, FileText, Filter, Printer, RotateCcw, Search, Truck, X } from 'lucide-react';
 import CostBreakdown, { ProfitBadge } from '@/components/CostBreakdown';
 import InvoiceModal from '@/components/InvoiceModal';
 import { useMarketplaceLabel, useMarketplaces } from '@/components/useMarketplaces';
 import { MARKETPLACE_META, ORDER_STATUSES, ORDER_STATUS_META, ORDER_TABS, RETURN_REASONS, isClosedStatus, type OrderStatus } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
-import { Button, Card, Empty, ErrorBox, Field, MarketplaceBadge, Modal, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
+import { Button, Card, Empty, ErrorBox, Field, MarketplaceBadge, Modal, PageLoader, ProductImage, cx, fixImageUrl, fmtDate, inputClass, tl2 } from '@/components/ui';
 
 type Cost = { net_profit: number; status: string; same_day_eligible: boolean | null; same_day_met: boolean | null; fast_met: boolean | null; deadline?: string | null };
 type Item = { sku: string; product_title: string; quantity: number; unit_price: number; product?: { id: string; image_url: string | null; barcode: string | null; variant_attrs: Record<string, string> | null } | null };
@@ -47,8 +48,8 @@ const variantText = (v?: Record<string, string> | null) => (v ? Object.entries(v
 const SORT_OPTIONS = [
   ['date_desc', 'Sipariş tarihi: yeniden eskiye'],
   ['date_asc', 'Sipariş tarihi: eskiden yeniye'],
-  ['deadline_asc', 'Kargoya kalan süre: azdan çoğa'],
-  ['deadline_desc', 'Kargoya kalan süre: çoktan aza'],
+  ['deadline_asc', 'Kargoya kalan süre: en acilden'],
+  ['deadline_desc', 'Kargoya kalan süre: en geçten'],
   ['amount_desc', 'Tutar: yüksekten düşüğe'],
   ['amount_asc', 'Tutar: düşükten yükseğe'],
 ] as const;
@@ -56,9 +57,7 @@ const SORT_OPTIONS = [
 type Filters = { customer: string; orderNo: string; tracking: string; barcode: string; product: string; marketplace: string; deadline: string; invoice: string; from: string; to: string };
 const EMPTY: Filters = { customer: '', orderNo: '', tracking: '', barcode: '', product: '', marketplace: '', deadline: '', invoice: '', from: '', to: '' };
 /** Ana sayfadaki kutulardan gelen bağlantılar: /orders?tab=new, ?deadline=late, ?invoice=missing */
-function fromUrl(): { tab: string; filters: Filters } {
-  if (typeof window === 'undefined') return { tab: 'all', filters: EMPTY };
-  const sp = new URLSearchParams(window.location.search);
+function fromUrl(sp: URLSearchParams): { tab: string; filters: Filters } {
   const f = { ...EMPTY };
   for (const k of Object.keys(EMPTY) as Array<keyof Filters>) f[k] = sp.get(k) ?? '';
   if (sp.get('late') === '1') f.deadline = 'late';
@@ -69,10 +68,16 @@ function fromUrl(): { tab: string; filters: Filters } {
 type Pending = { orders: Order[]; status: OrderStatus } | null;
 
 export default function OrdersPage() {
+  return <Suspense fallback={<PageLoader />}><OrdersInner /></Suspense>;
+}
+
+function OrdersInner() {
+  const sp = useSearchParams();
+  const spKey = sp.toString();
   const staff = useIsStaff();
   const mpList = useMarketplaces();
   const mpLabel = useMarketplaceLabel();
-  const [init] = useState(fromUrl);
+  const [init] = useState(() => fromUrl(new URLSearchParams(spKey)));
   const [tab, setTab] = useState(init.tab);
   const [draft, setDraft] = useState<Filters>(init.filters);
   const [filters, setFilters] = useState<Filters>(init.filters);
@@ -96,6 +101,12 @@ export default function OrdersPage() {
     else toast(`${local} Ancak ${label(o)} pazaryerine gönderilemedi: ${remote.message} (İşlem Merkezi'nden tekrar denenebilir)`, 'err');
   }
 
+  // Ana sayfadaki kutulardan gelince (ör. ?tab=shipped) ilgili siparişler açılır
+  useEffect(() => {
+    const u = fromUrl(new URLSearchParams(spKey));
+    setTab(u.tab); setDraft(u.filters); setFilters(u.filters); setPage(0);
+    if (Object.values(u.filters).some(Boolean)) setShowFilters(true);
+  }, [spKey]);
   useEffect(() => { setSelected(new Set()); }, [tab, filters, sort, page]);
   const activeCount = Object.values(filters).filter(Boolean).length;
   const applyFilters = () => { setFilters(draft); setPage(0); };
@@ -308,6 +319,7 @@ export default function OrdersPage() {
             {SORT_OPTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
         </label>
+        {sort.startsWith('deadline') && <span className="basis-full text-[11px] text-slate-500">Kalan süreye göre sıralarken yalnızca kargoya verilmeyi bekleyen siparişler gösterilir (kargodaki, teslim edilen, iptal ve iadeler gizlenir).</span>}
       </div>
 
       {loading ? <PageLoader /> : error ? <ErrorBox error={error} onRetry={reload} /> : (
@@ -358,7 +370,7 @@ export default function OrdersPage() {
                   <tr>
                     <th className="pl-4 py-3 w-8"><input type="checkbox" className="accent-indigo-600" checked={allChecked} disabled={!selectable.length} onChange={(e) => setSelected(e.target.checked ? new Set(selectable.map((o) => o.id)) : new Set())} /></th>
                     <th className="text-left px-3 py-3 font-semibold">Sipariş Bilgileri</th>
-                    <th className="text-left px-3 py-3 font-semibold">Alıcı</th>
+                    <th className="text-left px-2 py-3 font-semibold w-24">Alıcı</th>
                     <th className="text-left px-3 py-3 font-semibold">Ürün Bilgileri <span className="float-right font-normal">Birim fiyat</span></th>
                     <th className="text-left px-3 py-3 font-semibold">Kargo</th>
                     <th className="text-right px-3 py-3 font-semibold">Fatura</th>
@@ -376,7 +388,7 @@ export default function OrdersPage() {
                           <OrderMeta o={o} />
                           {rem && <div className={cx('inline-block mt-1.5 text-[11px] font-medium rounded-full px-2 py-0.5', rem.cls)}>⏱ {rem.text}</div>}
                         </td>
-                        <td className="px-3 py-3 whitespace-nowrap">{o.customer_name}</td>
+                        <td className="px-2 py-3 text-xs text-slate-700 w-24 max-w-[7rem] break-words">{o.customer_name}</td>
                         <td className="px-3 py-3 min-w-[300px] max-w-[440px]">
                           <ItemList items={o.items} price />
                           {o.return_reason && <div className="text-[11px] text-fuchsia-700 mt-1">İade: {o.return_reason}</div>}
@@ -454,12 +466,12 @@ function ItemList({ items, price }: { items: Item[]; price?: boolean }) {
       {items.map((i, k) => {
         const v = variantText(i.product?.variant_attrs);
         return (
-          <li key={k} className="flex gap-2.5 min-h-12">
-            {i.product?.image_url
-              ? <img src={i.product.image_url} alt="" loading="lazy" className="w-12 h-12 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-100" />
-              : <span className="w-12 h-12 rounded-lg bg-slate-100 text-slate-300 flex items-center justify-center shrink-0"><Package className="w-5 h-5" /></span>}
+          <li key={k} className="flex gap-3">
+            <a href={i.product?.image_url ? fixImageUrl(i.product.image_url) : undefined} target="_blank" rel="noreferrer" className="shrink-0" title="Fotoğrafı büyüt">
+              <ProductImage src={i.product?.image_url} px={300} className="w-20 h-28 sm:w-24 sm:h-32 rounded-lg border border-slate-200" />
+            </a>
             <div className="min-w-0 flex-1 text-xs leading-snug">
-              <div className="text-slate-800 font-medium line-clamp-2" title={i.product_title}>{i.quantity > 1 && <span className="text-indigo-700">{i.quantity}× </span>}{i.product_title}</div>
+              <div className="text-slate-800 font-medium text-[13px] line-clamp-3" title={i.product_title}>{i.quantity > 1 && <span className="text-indigo-700">{i.quantity}× </span>}{i.product_title}</div>
               <div className="text-slate-400 mt-0.5">Stok kodu: <span className="font-mono text-slate-500">{i.sku || '—'}</span></div>
               {i.product?.barcode && <div className="text-slate-400">Barkod: <span className="font-mono text-slate-500">{i.product.barcode}</span></div>}
               {v && <div className="text-slate-500">{v}</div>}

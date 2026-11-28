@@ -1,6 +1,6 @@
 'use client';
-import { X, Loader2 } from 'lucide-react';
-import { useEffect, type ReactNode } from 'react';
+import { X, Loader2, Package } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useMarketplaceShortName } from './useMarketplaces';
 import { MARKETPLACE_META, ORDER_STATUS_META, isMarketplace, isSecondAccount, mixHex, type OrderStatus } from '@/lib/marketplaces/meta';
 
@@ -105,5 +105,43 @@ export function ErrorBox({ error, onRetry }: { error: string; onRetry?: () => vo
       ) : null}
       {onRetry && <button onClick={onRetry} className="ml-2 underline">Tekrar dene</button>}
     </div>
+  );
+}
+
+/** Pazaryeri fotoğraf adresini düzeltir: http → https (yoksa tarayıcı engeller), {size} gibi yer tutucular */
+export function fixImageUrl(u: string): string {
+  let x = u.trim();
+  if (x.startsWith('//')) x = `https:${x}`;
+  if (x.startsWith('http://')) x = `https://${x.slice(7)}`;
+  return x.replace(/\{(size|width|height|w|h)\}/gi, '600');
+}
+/** Küçük önizleme: Trendyol CDN boyutlandırmayı destekler (çok daha hızlı yüklenir) */
+function thumbOf(u: string, px: number): string | null {
+  const m = u.match(/^https:\/\/cdn\.dsmcdn\.com\/(?!mnresize\/)(.+)$/);
+  return m ? `https://cdn.dsmcdn.com/mnresize/${px}/${Math.round(px * 1.5)}/${m[1]}` : null;
+}
+
+/**
+ * Ürün fotoğrafı: önce küçük kopya, olmazsa asıl fotoğraf, o da olmazsa bir kez daha dener,
+ * en sonunda boş kutu. Yüklenirken gri zemin gösterir.
+ */
+export function ProductImage({ src, className, px = 240 }: { src?: string | null; className?: string; px?: number }) {
+  const original = src ? fixImageUrl(src) : '';
+  const candidates = original ? [thumbOf(original, px), original, `${original}${original.includes('?') ? '&' : '?'}r=1`].filter(Boolean) as string[] : [];
+  const [i, setI] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { setI(0); setLoaded(false); }, [original]);
+  const url = candidates[i];
+  return (
+    <span className={cx('relative block overflow-hidden bg-slate-100', !loaded && url && 'animate-pulse', className)}>
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img key={url} src={url} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer"
+          onLoad={() => setLoaded(true)} onError={() => setI((n) => n + 1)}
+          className={cx('w-full h-full object-cover transition-opacity', loaded ? 'opacity-100' : 'opacity-0')} />
+      ) : (
+        <span className="absolute inset-0 flex items-center justify-center text-slate-300"><Package className="w-1/3 h-1/3 max-w-8 max-h-8" /></span>
+      )}
+    </span>
   );
 }
