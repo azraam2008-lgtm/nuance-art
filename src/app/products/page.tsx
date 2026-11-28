@@ -130,7 +130,7 @@ export default function ProductsPage() {
                           const pr = p.profits?.[l.marketplace_name];
                           return (
                             <li key={l.marketplace_name} className="flex items-center gap-2 px-3 py-1.5" title={l.sync_error_message ?? ''}>
-                              <span className="w-24 shrink-0 truncate font-medium" style={{ color: MARKETPLACE_META[l.marketplace_name].color }}>{MARKETPLACE_META[l.marketplace_name].label}</span>
+                              <span className="w-24 shrink-0 truncate font-medium" style={{ color: MARKETPLACE_META[l.marketplace_name].chart }}>{MARKETPLACE_META[l.marketplace_name].label}</span>
                               <span className={cx('px-1.5 rounded text-[10px] whitespace-nowrap', STATUS_STYLE[l.listing_status])}>{STATUS_LABEL[l.listing_status]}</span>
                               <span className="ml-auto tabular-nums whitespace-nowrap">{pr ? tl2(pr.price) : ''}</span>
                               {pr && <span className={cx('tabular-nums font-semibold w-24 text-right whitespace-nowrap', pr.netProfit < 0 ? 'text-rose-600' : 'text-emerald-700')}>{pr.netProfit >= 0 ? '+' : ''}{tl2(pr.netProfit)}</span>}

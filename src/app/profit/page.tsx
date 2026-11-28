@@ -32,7 +32,8 @@ function preset(p: string): [string, string] {
   return [iso(new Date(now.getTime() - (days - 1) * 86_400_000)), iso(now)];
 }
 
-const COLORS = { commission: '#6366F1', fees: '#A855F7', shipping: '#F59E0B', tax: '#64748B', product_cost: '#94A3B8', net_profit: '#10B981' };
+// Yumuşak ama net ayırt edilen tonlar
+const COLORS = { commission: '#6C7FB8', fees: '#9A86C4', shipping: '#D9A866', tax: '#8A94A6', product_cost: '#B9C0CC', net_profit: '#5FA88A' };
 const LABELS: Record<string, string> = { commission: 'Komisyon', fees: 'Platform bedelleri', shipping: 'Kargo', tax: 'Stopaj', product_cost: 'Ürün maliyeti', other: 'Reklam/risk', net_profit: 'Net kâr' };
 
 export default function ProfitPage() {

@@ -5,11 +5,12 @@ import { currentStoreId, currentUserId, withStore } from '@/lib/tenant';
 import { withSession } from '@/lib/auth/server';
 import { BASE_MARKETPLACES } from '@/lib/marketplaces/meta';
 import { audit } from '@/lib/audit';
+import { ACCENTS, accentFor } from '@/lib/theme';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-interface StoreRow { id: string; name: string; role: string; isDemo: boolean }
+interface StoreRow { id: string; name: string; role: string; isDemo: boolean; accent: string; accentKey: string }
 
 /** Kullanıcının erişebildiği tüm mağazalar (ana mağaza + üyelikler) */
 async function myStores(uid: string): Promise<StoreRow[]> {
@@ -20,7 +21,12 @@ async function myStores(uid: string): Promise<StoreRow[]> {
   const ids = [...roles.keys()];
   if (!ids.length) return [];
   const stores = must(await rawDb().from('stores').select('id, name, is_demo, created_at').in('id', ids).order('created_at')) as Array<{ id: string; name: string; is_demo: boolean }>;
-  return stores.map((s) => ({ id: s.id, name: s.name || 'Mağaza', role: roles.get(s.id) ?? 'staff', isDemo: !!s.is_demo }));
+  // Her mağazanın rengi (seçilmemişse kimliğinden sabit bir renk)
+  const themes = must(await rawDb().from('app_settings').select('store_id, value').eq('key', 'theme').in('store_id', ids)) as Array<{ store_id: string; value: { accent?: string } }>;
+  return stores.map((s) => {
+    const a = accentFor(s.id, themes.find((t) => t.store_id === s.id)?.value?.accent);
+    return { id: s.id, name: s.name || 'Mağaza', role: roles.get(s.id) ?? 'staff', isDemo: !!s.is_demo, accent: a.base, accentKey: a.key };
+  });
 }
 
 /** Bir mağazanın bu ayki özeti (ciro, net kâr, sipariş, stok) — kendi mağaza bağlamında hesaplanır */
@@ -62,7 +68,7 @@ export const GET = handle(async (req: Request) => {
 
 /** action=create: yeni (ayrı) mağaza açar ve ona geçer · action=switch: başka mağazaya geçer */
 export const POST = handle(async (req: Request) => {
-  const b = await readJson<{ action?: string; name?: string; storeId?: string }>(req);
+  const b = await readJson<{ action?: string; name?: string; storeId?: string; accent?: string }>(req);
   const uid = currentUserId();
   const { data: me } = await rawDb().from('app_users').select('id, email, name, session_version').eq('id', uid).single();
   if (!me) throw new HttpError(401, 'Oturum gerekli.');
@@ -80,6 +86,13 @@ export const POST = handle(async (req: Request) => {
   } else if (b.action === 'switch') {
     target = String(b.storeId ?? '');
     if (!(await myStores(uid)).some((s) => s.id === target)) throw new HttpError(403, 'Bu mağazaya erişiminiz yok.');
+  } else if (b.action === 'theme') {
+    // Mağaza rengi: sahip veya yönetici değiştirir (geçiş yapmaz)
+    const st = (await myStores(uid)).find((s) => s.id === b.storeId);
+    if (!st || st.role === 'staff') throw new HttpError(403, 'Bu mağazanın rengini değiştirme yetkiniz yok.');
+    if (!ACCENTS.some((a) => a.key === b.accent)) throw new HttpError(400, 'Geçersiz renk.');
+    await withStore(st.id, async () => { must(await db().from('app_settings').upsert({ key: 'theme', value: { accent: b.accent }, updated_at: new Date().toISOString() }).select('key')); });
+    return { ok: true };
   } else {
     throw new HttpError(400, 'Geçersiz işlem.');
   }

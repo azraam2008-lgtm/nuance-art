@@ -19,9 +19,10 @@ export function BrandName({ light }: { light?: boolean }) {
 }
 
 /** Panelin içinde: firmanın baş harfiyle logo (ürün logosu yerine) */
-export function StoreMark({ name, size = 34 }: { name: string; size?: number }) {
+/** color verilmezse mağazanın vurgu rengini kullanır */
+export function StoreMark({ name, size = 34, color }: { name: string; size?: number; color?: string }) {
   const letter = (name.trim()[0] ?? 'M').toLocaleUpperCase('tr');
   return (
-    <div style={{ width: size, height: size, fontSize: size * 0.45 }} className="shrink-0 rounded-[9px] bg-amber-300 text-slate-900 font-bold grid place-items-center" aria-hidden="true">{letter}</div>
+    <div style={{ width: size, height: size, fontSize: size * 0.45, ...(color ? { background: color } : {}) }} className="shrink-0 rounded-[9px] bg-indigo-600 text-white font-bold grid place-items-center" aria-hidden="true">{letter}</div>
   );
 }

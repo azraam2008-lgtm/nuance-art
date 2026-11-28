@@ -1,7 +1,7 @@
 'use client';
 import { X, Loader2 } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
-import { MARKETPLACE_META, ORDER_STATUS_META, isMarketplace, type OrderStatus } from '@/lib/marketplaces/meta';
+import { MARKETPLACE_META, ORDER_STATUS_META, isMarketplace, isSecondAccount, mixHex, type OrderStatus } from '@/lib/marketplaces/meta';
 
 export const tl = (n: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(n || 0);
 export const tl2 = (n: number) => new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(n || 0);
@@ -12,8 +12,11 @@ export const cx = (...c: Array<string | false | null | undefined>) => c.filter(B
 export function MarketplaceBadge({ name, size = 'sm' }: { name: string; size?: 'sm' | 'xs' }) {
   if (!isMarketplace(name)) return <span className="text-xs text-slate-500">{name}</span>;
   const m = MARKETPLACE_META[name];
+  const second = isSecondAccount(name);
+  // Yumuşak zemin + koyu yazı; ikinci mağaza kesik çerçeveyle ayrılır
   return (
-    <span className={cx('inline-flex items-center rounded-md font-semibold whitespace-nowrap', size === 'xs' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]', m.badgeClass)}>
+    <span className={cx('inline-flex items-center rounded-md font-semibold whitespace-nowrap', size === 'xs' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]')}
+      style={{ background: mixHex(m.chart, '#FFFFFF', 0.84), color: mixHex(m.chart, '#11131A', 0.35), boxShadow: `inset 0 0 0 1px ${mixHex(m.chart, '#FFFFFF', second ? 0.2 : 0.6)}`, ...(second ? { outline: `1px dashed ${m.chart}`, outlineOffset: '-3px' } : {}) }}>
       {m.label}
     </span>
   );

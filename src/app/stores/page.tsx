@@ -5,13 +5,14 @@ import { api, useToast } from '@/components/live';
 import { StoreMark } from '@/components/Brand';
 import { Button, Card, ErrorBox, Field, MarketplaceBadge, PageLoader, cx, inputClass, tl } from '@/components/ui';
 import { MARKETPLACE_META, isMarketplace } from '@/lib/marketplaces/meta';
+import { ACCENTS } from '@/lib/theme';
 
 interface Summary {
   orders: number; revenue: number; profit: number; products: number; stockUnits: number; outOfStock: number; lowStock: number;
   byMarketplace: Record<string, { orders: number; revenue: number }>;
   connected: Array<{ marketplace: string; accountName: string }>;
 }
-interface Row { id: string; name: string; role: string; isDemo: boolean; summary: Summary | null }
+interface Row { id: string; name: string; role: string; isDemo: boolean; accent: string; accentKey: string; summary: Summary | null }
 interface Resp { current: string; stores: Row[]; total: { orders: number; revenue: number; profit: number; stockUnits: number; products: number } }
 
 const ROLE_TR: Record<string, string> = { owner: 'Sahip', admin: 'Yönetici', staff: 'Personel' };
@@ -32,6 +33,13 @@ export default function StoresPage() {
     setBusy(key);
     try { await api('/api/stores', { method: 'POST', body }); window.location.href = '/'; }
     catch (e) { toast((e as Error).message, 'err'); setBusy(null); }
+  }
+
+  async function setColor(s: Row, key: string) {
+    try {
+      await api('/api/stores', { method: 'POST', body: { action: 'theme', storeId: s.id, accent: key } });
+      if (s.id === d?.current) window.location.reload(); else load();
+    } catch (e) { toast((e as Error).message, 'err'); }
   }
 
   if (error) return <ErrorBox error={error} onRetry={() => { setError(null); load(); }} />;
@@ -60,15 +68,25 @@ export default function StoresPage() {
           const cur = s.id === d.current;
           const x = s.summary;
           return (
-            <Card key={s.id} className={cx('p-4 sm:p-5 space-y-3 min-w-0', cur && 'ring-2 ring-indigo-400')}>
+            <Card key={s.id} className={cx('p-4 sm:p-5 space-y-3 min-w-0 relative overflow-hidden', cur && 'ring-2 ring-indigo-300')}>
+              <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: s.accent }} />
               <div className="flex items-center gap-3">
-                <StoreMark name={s.name} size={36} />
+                <StoreMark name={s.name} size={36} color={s.accent} />
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold truncate">{s.name}</div>
                   <div className="text-xs text-slate-500">{ROLE_TR[s.role] ?? s.role}{s.isDemo ? ' · deneme mağazası' : ''}{cur ? ' · şu an açık' : ''}</div>
                 </div>
                 {!cur && <Button variant="secondary" loading={busy === s.id} onClick={() => post({ action: 'switch', storeId: s.id }, s.id)}><ArrowRightLeft className="w-4 h-4" /> Geç</Button>}
               </div>
+              {s.role !== 'staff' && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] text-slate-500 mr-1">Renk:</span>
+                  {ACCENTS.map((a) => (
+                    <button key={a.key} title={a.label} aria-label={`Renk: ${a.label}`} onClick={() => setColor(s, a.key)}
+                      className={cx('w-5 h-5 rounded-full ring-offset-2 transition', s.accentKey === a.key ? 'ring-2 ring-slate-400' : 'hover:scale-110')} style={{ background: a.base }} />
+                  ))}
+                </div>
+              )}
               {!x ? <p className="text-xs text-slate-500">Bu mağazada personel olduğunuz için ciro ve kâr gösterilmiyor.</p> : (
                 <>
                   <div className="grid grid-cols-3 gap-2 text-center">

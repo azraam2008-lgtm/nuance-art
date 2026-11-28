@@ -149,7 +149,7 @@ export default function ProductDetailPage() {
                     <div className="text-xs font-medium text-slate-600 mb-1">Pazaryerine özel fiyat (boş = ortak fiyat)</div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       {listings.filter((l) => l.listing_status !== 'passive').map((l) => (
-                        <label key={l.marketplace_name} className="text-xs"><span style={{ color: MARKETPLACE_META[l.marketplace_name].color }} className="font-medium">{MARKETPLACE_META[l.marketplace_name].label}</span>
+                        <label key={l.marketplace_name} className="text-xs"><span style={{ color: MARKETPLACE_META[l.marketplace_name].chart }} className="font-medium">{MARKETPLACE_META[l.marketplace_name].label}</span>
                           <input className={`${inputClass} mt-0.5`} placeholder={form.price} value={form.overrides[l.marketplace_name] ?? ''} onChange={(e) => setForm({ ...form, overrides: { ...form.overrides, [l.marketplace_name]: e.target.value } })} />
                         </label>
                       ))}

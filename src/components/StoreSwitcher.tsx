@@ -5,7 +5,7 @@ import { Check, ChevronsUpDown, LayoutGrid, Plus } from 'lucide-react';
 import { StoreMark } from './Brand';
 import { BRAND } from '@/lib/brand';
 
-interface Store { id: string; name: string; role: string; isDemo: boolean }
+interface Store { id: string; name: string; role: string; isDemo: boolean; accent?: string }
 
 /** Yan menünün üstü: mağaza adı; tıklayınca diğer mağazalara geçiş, yeni mağaza ekleme ve toplu özet */
 export default function StoreSwitcher({ name }: { name: string }) {
@@ -32,13 +32,13 @@ export default function StoreSwitcher({ name }: { name: string }) {
 
   return (
     <div ref={ref} className="relative min-w-0 flex-1">
-      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-3 text-left rounded-lg hover:bg-slate-800 -m-1 p-1" aria-haspopup="menu" aria-expanded={open}>
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-3 text-left rounded-lg hover:bg-white/70 -m-1 p-1" aria-haspopup="menu" aria-expanded={open}>
         <StoreMark name={name} size={34} />
         <div className="leading-tight min-w-0 flex-1">
-          <div className="text-white font-semibold truncate">{name}</div>
+          <div className="text-slate-900 font-semibold truncate">{name}</div>
           <div className="text-[11px] text-slate-500 truncate">{BRAND.name} ile yönetiliyor</div>
         </div>
-        <ChevronsUpDown className="w-4 h-4 text-slate-500 shrink-0" />
+        <ChevronsUpDown className="w-4 h-4 text-slate-400 shrink-0" />
       </button>
       {open && (
         <div role="menu" className="absolute z-50 left-0 right-0 mt-2 rounded-xl bg-white text-slate-800 shadow-2xl ring-1 ring-slate-200 overflow-hidden">
@@ -46,7 +46,7 @@ export default function StoreSwitcher({ name }: { name: string }) {
           {!stores ? <div className="px-3 py-2 text-sm text-slate-400">Yükleniyor…</div> : stores.stores.map((s) => (
             <button key={s.id} disabled={s.id === stores.current || !!busy} onClick={() => go(s.id)}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50 disabled:cursor-default">
-              <StoreMark name={s.name} size={22} />
+              <StoreMark name={s.name} size={22} color={s.accent} />
               <span className="truncate flex-1">{s.name}{s.isDemo && <span className="text-[10px] text-amber-600"> (deneme)</span>}</span>
               {s.id === stores.current ? <Check className="w-4 h-4 text-indigo-600" /> : busy === s.id ? <span className="text-[11px] text-slate-400">geçiliyor…</span> : null}
             </button>
