@@ -66,16 +66,17 @@ export default function Shell({ children }: { children: ReactNode }) {
       if (!s.user) router.replace('/login');
       else if (!s.onboarded) router.replace('/onboarding');
     }).catch(() => {});
-  }, [bare, router, path]);
+  }, [bare, router, status === null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Panel açıkken 3 dakikada bir otomatik senkron (sipariş çekme + stok eşitleme)
   const ready = !bare && !!status?.user && !!status.onboarded;
   useEffect(() => {
     if (!ready) return;
     const tick = () => { if (document.visibilityState === 'visible') fetch('/api/sync', { method: 'POST' }).catch(() => {}); };
-    tick();
+    // İlk senkron sayfa açıldıktan biraz sonra: açılışta sayfa verileriyle yarışıp yavaşlatmasın
+    const first = setTimeout(tick, 20_000);
     const t = setInterval(tick, 180_000);
-    return () => clearInterval(t);
+    return () => { clearTimeout(first); clearInterval(t); };
   }, [ready]);
 
   if (bare) return <ToastProvider>{children}</ToastProvider>;

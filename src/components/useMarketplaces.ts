@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { BASE_MARKETPLACES, MARKETPLACE_META, baseOf, isMarketplace, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { BASE_MARKETPLACES, MARKETPLACE_META, baseOf, isMarketplace, isSecondAccount, type MarketplaceName } from '@/lib/marketplaces/meta';
 
 type Info = { list: MarketplaceName[]; names: Record<string, string> };
 let cache: Promise<Info> | null = null;
@@ -32,4 +32,10 @@ export function useMarketplaceLabel(): (m: string) => string {
 export function useMarketplaceShortName(): (m: string) => string {
   const { names } = useInfo();
   return (m: string) => names[m] || (isMarketplace(m) ? MARKETPLACE_META[m].label : m);
+}
+
+/** Aynı pazaryerinde iki mağaza var ama en az birinin adı girilmemişse o pazaryerleri (ör. ["trendyol"]) */
+export function useUnnamedTwins(): MarketplaceName[] {
+  const { list, names } = useInfo();
+  return list.filter((m) => isSecondAccount(m)).map((m) => baseOf(m) as MarketplaceName).filter((b) => !names[b] || !names[`${b}_2`]);
 }

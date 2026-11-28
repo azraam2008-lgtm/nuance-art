@@ -72,3 +72,17 @@ export const PUT = handle(async (req: Request) => {
   await audit('API bağlantısı değişti', `${MARKETPLACE_META[b.marketplace].label}${update.is_active ? ' (açık)' : ' (kapalı)'}`);
   return { ok: true };
 });
+
+/** Yalnızca mağaza adını değiştirir (anahtarlara dokunmaz). Aynı pazaryerinde iki mağaza varsa ayırt etmek için. */
+export const PATCH = handle(async (req: Request) => {
+  const b = await readJson<{ marketplace?: string; accountName?: string }>(req);
+  if (!isMarketplace(b.marketplace)) throw new HttpError(400, 'Geçersiz pazaryeri.');
+  const name = (b.accountName ?? '').trim().slice(0, 60);
+  if (!name) throw new HttpError(400, 'Mağaza adını yazın.');
+  const { data: cur } = await db().from('marketplace_credentials').select('extra_config').eq('marketplace_name', b.marketplace).maybeSingle();
+  if (!cur) throw new HttpError(404, 'Bu pazaryeri henüz eklenmemiş.');
+  must(await db().from('marketplace_credentials').update({ extra_config: { ...((cur.extra_config as Record<string, unknown> | null) ?? {}), accountName: name }, updated_at: new Date().toISOString() })
+    .eq('marketplace_name', b.marketplace).select('id'));
+  await audit('Mağaza adı değişti', `${MARKETPLACE_META[b.marketplace].label} → ${name}`);
+  return { ok: true };
+});

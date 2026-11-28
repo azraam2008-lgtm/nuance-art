@@ -1,7 +1,6 @@
 import { handle } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
 import { isMarketplace, isOrderStatus, OPEN_STATUSES, ORDER_TABS, type OrderStatus } from '@/lib/marketplaces/meta';
-import { extractLabel } from '@/lib/shipping/label';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,15 +57,19 @@ export const GET = handle(async (req: Request) => {
   const now = new Date();
   const nowIso = now.toISOString();
   const endOfToday = new Date(`${new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(now)}T23:59:59+03:00`).toISOString();
+  // Sayılar ana sorguyla aynı anda çalışır (sayfa daha hızlı açılır)
+  const countsP = tabCounts(marketplace);
+  const lateP = Promise.resolve(db().from('orders').select('id, order_costs!inner(deadline)', { count: 'exact', head: true })
+    .in('status', OPEN_STATUSES).is('shipped_at', null).lt('order_costs.deadline', nowIso)).then((r) => r.count ?? 0);
   const itemIds = product || barcode ? await orderIdsByItems({ product, barcode }) : null;
-  if (itemIds && !itemIds.length) return { orders: [], total: 0, page, pageSize, lateCount: 0, tabCounts: await tabCounts(marketplace) };
+  if (itemIds && !itemIds.length) return { orders: [], total: 0, page, pageSize, lateCount: await lateP, tabCounts: await countsP };
 
   const needCost = !!deadline || sort.startsWith('deadline');
   // Fatura tablosu henüz kurulmadıysa (schema.sql 9h çalıştırılmadı) siparişler yine de listelenir
   const build = async (inv: boolean, sortCol: string) => {
     let query = db()
       .from('orders')
-      .select(`id, external_order_id, marketplace_name, customer_name, total_amount, status, order_date, shipped_at, carrier, tracking_number, invoice_number, return_reason, raw,
+      .select(`id, external_order_id, marketplace_name, customer_name, total_amount, status, order_date, shipped_at, carrier, tracking_number, invoice_number, return_reason, t1:raw->>cargoTrackingNumber, t2:raw->>trackingNumber, t3:raw->>cargoCode, t4:raw->>trackingInfoCode, c1:raw->>cargoProviderName,
         items:order_items(sku, product_title, quantity, unit_price, product:products(id, image_url, barcode, variant_attrs)),
         cost:order_costs${deadline ? '!inner' : ''}(net_profit, status, margin_on_revenue, same_day_eligible, same_day_met, fast_eligible, fast_met, deadline)${inv ? ', invoice:invoices(status, invoice_number, last_error)' : ''}`, { count: 'exact' })
       .order(sortCol, { ascending: SORTS[sort].asc, nullsFirst: false })
@@ -76,6 +79,8 @@ export const GET = handle(async (req: Request) => {
     if (isMarketplace(marketplace)) query = query.eq('marketplace_name', marketplace);
     if (isOrderStatus(status)) query = query.eq('status', status);
     else if (tab && tab.statuses.length) query = query.in('status', [...tab.statuses]);
+    // Kalan süreye göre sıralarken yalnızca kargoya verilmeyi bekleyenler (teslim edilen/iade listeyi kalabalıklaştırmasın)
+    if (sort.startsWith('deadline')) query = query.in('status', OPEN_STATUSES).is('shipped_at', null);
     if (deadline === 'late') query = query.in('status', OPEN_STATUSES).is('shipped_at', null).lt('cost.deadline', nowIso);
     if (deadline === 'today') query = query.in('status', OPEN_STATUSES).is('shipped_at', null).gte('cost.deadline', nowIso).lte('cost.deadline', endOfToday);
     if (deadline === 'ok') query = query.in('status', OPEN_STATUSES).is('shipped_at', null).gt('cost.deadline', endOfToday);
@@ -103,15 +108,13 @@ export const GET = handle(async (req: Request) => {
   const { data, error, count } = res;
   if (error) throw new Error(error.message);
 
-  // Pazaryerinin ham verisi tarayıcıya gönderilmez; yalnızca paket ve teslimat (kargo takip) numarası çıkarılır
-  const orders = ((data ?? []) as unknown as Array<Record<string, unknown> & { raw: unknown; external_order_id: string; customer_name: string; tracking_number: string | null; carrier: string | null }>).map(({ raw, ...o }) => {
-    const label = extractLabel(raw, { customerName: o.customer_name, trackingNumber: o.tracking_number, carrier: o.carrier });
+  // Pazaryerinin ham verisi tarayıcıya gönderilmez (yavaşlatır); yalnızca kargo takip no ve firma alanları seçilir
+  type Row = Record<string, unknown> & { external_order_id: string; tracking_number: string | null; carrier: string | null; t1?: string | null; t2?: string | null; t3?: string | null; t4?: string | null; c1?: string | null };
+  const orders = ((data ?? []) as unknown as Row[]).map(({ t1, t2, t3, t4, c1, ...o }) => {
     const [orderNumber, packageNo] = o.external_order_id.split('/');
-    return { ...o, order_number: orderNumber, package_no: packageNo ?? null, delivery_no: label.trackingNumber, carrier: o.carrier || label.carrier };
+    return { ...o, order_number: orderNumber, package_no: packageNo ?? null, delivery_no: t1 || t2 || t3 || t4 || o.tracking_number || null, carrier: o.carrier || c1 || null };
   });
-  const lateCount = (await db().from('orders').select('id, order_costs!inner(deadline)', { count: 'exact', head: true })
-    .in('status', OPEN_STATUSES).is('shipped_at', null).lt('order_costs.deadline', nowIso)).count ?? 0;
-  return { orders, total: count ?? 0, page, pageSize, lateCount, tabCounts: await tabCounts(marketplace) };
+  return { orders, total: count ?? 0, page, pageSize, lateCount: await lateP, tabCounts: await countsP };
 });
 
 /** Sekmelerdeki sayılar (pazaryeri/mağaza filtresi uygulanır) */

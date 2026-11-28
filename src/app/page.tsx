@@ -1,10 +1,11 @@
 'use client';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { AlarmClock, AlertTriangle, ArrowRight, Boxes, ClipboardList, FileText, Inbox, Package, PackagePlus, RotateCcw, Timer, Truck } from 'lucide-react';
-import { type OrderStatus } from '@/lib/marketplaces/meta';
+import { AlarmClock, AlertTriangle, ArrowRight, Boxes, ClipboardList, FileText, Inbox, PackagePlus, RotateCcw, Timer, Truck } from 'lucide-react';
+import { MARKETPLACE_META, type OrderStatus } from '@/lib/marketplaces/meta';
+import { useUnnamedTwins } from '@/components/useMarketplaces';
 import { useLiveData } from '@/components/live';
-import { Card, ErrorBox, MarketplaceBadge, PageLoader, StatusBadge, cx, fmtDate, tl2 } from '@/components/ui';
+import { Card, ErrorBox, MarketplaceBadge, PageLoader, ProductImage, StatusBadge, cx, fmtDate, tl2 } from '@/components/ui';
 
 interface Dashboard {
   actions: { statusCounts: Record<string, number>; late: number; dueToday: number; returns30: number; invoiceMissing: number | null; criticalCount: number };
@@ -23,6 +24,7 @@ const OPEN = ['new', 'approved', 'preparing', 'invoiced'];
 /** Ana sayfa: Trendyol satıcı paneli gibi önce "yapılacaklar" — siparişler ve kritik stok. Ciro ve kâr Raporlar › Kârlılık'ta. */
 export default function DashboardPage() {
   const { data, error, loading, reload } = useLiveData<Dashboard>('/api/dashboard');
+  const unnamed = useUnnamedTwins();
   if (loading) return <PageLoader />;
   if (error || !data) return <ErrorBox error={error ?? 'Bilinmeyen hata'} onRetry={reload} />;
   const a = data.actions;
@@ -34,6 +36,7 @@ export default function DashboardPage() {
     (h.jobsFailed ?? 0) > 0 && { href: '/operations', text: `${h.jobsFailed} işlem pazaryerine gönderilemedi — İşlem Merkezi'nde nedenini görün.` },
     h.unsynced + h.errors > 0 && { href: '/stock', text: `${h.unsynced + h.errors} ilanda stok/yayın sorunu var — Stok sayfasından "Tümünü eşitle".` },
     h.pending > 0 && { href: '/products', text: `${h.pending} ilan pazaryeri onayı bekliyor.` },
+    ...unnamed.map((m) => ({ href: '/settings', text: `${MARKETPLACE_META[m].label}'da iki mağazanız var — ikisine de adını verin (API Bağlantıları).` })),
   ].filter(Boolean) as Array<{ href: string; text: string }>;
 
   return (
@@ -88,8 +91,8 @@ export default function DashboardPage() {
                         <MarketplaceBadge name={o.marketplace_name} size="xs" />
                         <span className="text-[11px] text-slate-400 font-mono truncate">#{o.external_order_id.split('/')[0]}</span>
                       </div>
-                      <div className="text-sm font-medium text-slate-800 truncate mt-0.5">{first ? `${first.quantity > 1 ? `${first.quantity}× ` : ''}${first.product_title}` : '—'}</div>
-                      <div className="text-xs text-slate-500 truncate">{o.customer_name} · {fmtDate(o.order_date)}</div>
+                      <div className="text-sm font-medium text-slate-800 line-clamp-2 mt-0.5">{first ? `${first.quantity > 1 ? `${first.quantity}× ` : ''}${first.product_title}` : '—'}</div>
+                      <div className="text-[11px] text-slate-400 truncate">{o.customer_name} · {fmtDate(o.order_date)}</div>
                     </div>
                     <div className="text-right shrink-0 space-y-1">
                       <div className="text-sm font-semibold tabular-nums">{tl2(o.total_amount)}</div>
@@ -132,10 +135,8 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {data.top.map((p, i) => (
               <Link key={p.id} href={`/products/${p.id}`} className="group bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
-                <div className="relative aspect-square bg-slate-100">
-                  {p.image_url
-                    ? <img src={p.image_url} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform" />
-                    : <span className="absolute inset-0 flex items-center justify-center text-slate-300"><Package className="w-8 h-8" /></span>}
+                <div className="relative">
+                  <ProductImage src={p.image_url} px={400} className="aspect-[3/4] w-full" />
                   <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-white/90 text-slate-800 text-xs font-bold flex items-center justify-center shadow-sm">{i + 1}</span>
                 </div>
                 <div className="p-2.5">
@@ -204,11 +205,10 @@ function CardHead({ title, href, link }: { title: string; href: string; link: st
 }
 
 function Thumb({ src, more = 0, small }: { src?: string | null; more?: number; small?: boolean }) {
-  const size = small ? 'w-10 h-10' : 'w-12 h-12';
   return (
-    <span className={cx('relative shrink-0 rounded-lg bg-slate-100 border border-slate-100 overflow-hidden flex items-center justify-center text-slate-300', size)}>
-      {src ? <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" /> : <Package className="w-5 h-5" />}
-      {more > 0 && <span className="absolute bottom-0 right-0 bg-slate-900/70 text-white text-[9px] font-semibold px-1 rounded-tl">+{more}</span>}
+    <span className="relative shrink-0">
+      <ProductImage src={src} px={small ? 160 : 240} className={cx('rounded-lg border border-slate-200', small ? 'w-14 h-[72px]' : 'w-[72px] h-24')} />
+      {more > 0 && <span className="absolute bottom-0 right-0 bg-slate-900/70 text-white text-[10px] font-semibold px-1 rounded-tl rounded-br-lg">+{more}</span>}
     </span>
   );
 }

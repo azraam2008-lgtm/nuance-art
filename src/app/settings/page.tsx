@@ -5,6 +5,7 @@ import { ChevronDown, Database, Save, ShieldCheck, Truck, Zap } from 'lucide-rea
 import { BASE_MARKETPLACES, MARKETPLACE_META, baseOf, isSecondAccount, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import MarketplaceConnect, { type Cred } from '@/components/MarketplaceConnect';
+import { refreshMarketplaceNames } from '@/components/useMarketplaces';
 import InvoicingSettingsCard from '@/components/InvoicingSettings';
 import { CARRIERS_BY_MARKETPLACE } from '@/lib/fees/carriers';
 import { DEFAULT_COMMISSION } from '@/lib/fees/commission-defaults';
@@ -45,6 +46,8 @@ function SettingsInner() {
         </span>
       </div>
 
+      <TwinNames creds={data.credentials} onSaved={() => { reload(); bump(); }} />
+
       <div className="space-y-3">
         {creds.map((c) => (
           <Card key={c.marketplace} className={cx('overflow-hidden', isSecondAccount(c.marketplace) && 'ml-4 sm:ml-8 border-dashed')}>
@@ -58,7 +61,8 @@ function SettingsInner() {
             </button>
             {open === c.marketplace && (
               <div className="px-5 pb-5 border-t border-slate-100 pt-4">
-                <MarketplaceConnect key={`${c.marketplace}-${c.mode}-${c.sellerId}`} cred={c} onSaved={() => { reload(); bump(); }} />
+                <MarketplaceConnect key={`${c.marketplace}-${c.mode}-${c.sellerId}`} cred={c} onSaved={() => { reload(); bump(); }}
+                  requireName={isSecondAccount(c.marketplace) || creds.some((x) => x.marketplace === `${c.marketplace}_2`)} />
                 {!isSecondAccount(c.marketplace) && c.mode !== 'off' && baseOf(c.marketplace) !== 'etsy' && !creds.some((x) => x.marketplace === `${c.marketplace}_2`) && (
                   <button onClick={() => { const s = `${c.marketplace}_2` as MarketplaceName; setAdded((a) => [...a, s]); setOpen(s); }}
                     className="mt-4 w-full rounded-lg border border-dashed border-indigo-300 text-indigo-700 text-sm py-2.5 hover:bg-indigo-50">
@@ -77,6 +81,49 @@ function SettingsInner() {
 
       {data.demoMode && <DemoTools onDone={() => { reload(); bump(); }} />}
     </div>
+  );
+}
+
+/** Aynı pazaryerinde iki mağaza varsa ikisine de ad verdirir (panelde "Trendyol / Trendyol 2" yerine firma adları görünsün) */
+function TwinNames({ creds, onSaved }: { creds: Cred[]; onSaved: () => void }) {
+  const toast = useToast();
+  const pairs = creds.filter((c) => isSecondAccount(c.marketplace)).map((c) => [baseOf(c.marketplace) as MarketplaceName, c.marketplace] as const)
+    .filter(([b, s]) => !creds.find((x) => x.marketplace === b)?.extraConfig?.accountName || !creds.find((x) => x.marketplace === s)?.extraConfig?.accountName);
+  const [names, setNames] = useState<Record<string, string>>(() => Object.fromEntries(creds.map((c) => [c.marketplace, String(c.extraConfig?.accountName ?? '')])));
+  const [busy, setBusy] = useState(false);
+  if (!pairs.length) return null;
+  async function save() {
+    setBusy(true);
+    try {
+      for (const [b, s] of pairs) for (const m of [b, s]) {
+        if (!names[m]?.trim()) throw new Error(`${MARKETPLACE_META[m].label} için mağaza adını yazın.`);
+        await api('/api/credentials', { method: 'PATCH', body: { marketplace: m, accountName: names[m] } });
+      }
+      refreshMarketplaceNames();
+      toast('Mağaza adları kaydedildi.');
+      onSaved();
+    } catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
+  }
+  return (
+    <Card className="p-4 sm:p-5 border-amber-300 bg-amber-50/60">
+      {pairs.map(([b, s]) => (
+        <div key={b} className="space-y-3">
+          <div>
+            <div className="font-semibold text-sm">{MARKETPLACE_META[b].label}&apos;da iki mağazanız var — ikisine de adını yazın</div>
+            <p className="text-xs text-slate-600 mt-0.5">Panelin her yerinde (siparişler, filtreler, raporlar) &quot;{MARKETPLACE_META[b].label}&quot; ve &quot;{MARKETPLACE_META[s].label}&quot; yerine bu adlar görünür. Satıcı panelinde yazan mağaza adını girin.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[b, s].map((m) => (
+              <label key={m} className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">{MARKETPLACE_META[m].label} {creds.find((x) => x.marketplace === m)?.sellerId ? <span className="text-slate-400 font-normal">(satıcı no {creds.find((x) => x.marketplace === m)!.sellerId})</span> : null}</span>
+                <input className={inputClass} value={names[m] ?? ''} maxLength={60} placeholder={m === b ? 'ör. Nisa Home Tekstil' : 'ör. Berezza'} onChange={(e) => setNames({ ...names, [m]: e.target.value })} />
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+      <div className="flex justify-end mt-3"><Button loading={busy} onClick={save}><Save className="w-4 h-4" /> Adları kaydet</Button></div>
+    </Card>
   );
 }
 
