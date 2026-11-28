@@ -2,8 +2,28 @@
 // Yeni bir pazaryeri eklerken: buraya meta, adapters/ altına adaptör, registry.ts'e fabrika,
 // veritabanında `marketplaces` tablosuna bir satır ekleyin.
 
-export const MARKETPLACES = ['trendyol', 'hepsiburada', 'n11', 'ciceksepeti', 'pazarama', 'idefix', 'koctas', 'etsy'] as const;
+/** Pazaryerleri (her biri bir "ana" pazaryeri) */
+export const BASE_MARKETPLACES = ['trendyol', 'hepsiburada', 'n11', 'ciceksepeti', 'pazarama', 'idefix', 'koctas', 'etsy'] as const;
+export type BaseMarketplace = (typeof BASE_MARKETPLACES)[number];
+/**
+ * Aynı pazaryerinde ikinci mağaza (ör. iki ayrı Trendyol satıcı hesabı): "trendyol_2".
+ * Kendi API anahtarı, ilanları ve siparişleri vardır; komisyon/kargo kuralları ve adaptör ana pazaryeriyle aynıdır.
+ * Stok ortak havuzdan gider: bir mağazada satış olunca diğerinde de düşer.
+ */
+export const MARKETPLACES = [
+  'trendyol', 'hepsiburada', 'n11', 'ciceksepeti', 'pazarama', 'idefix', 'koctas', 'etsy',
+  'trendyol_2', 'hepsiburada_2', 'n11_2', 'ciceksepeti_2', 'pazarama_2', 'idefix_2', 'koctas_2', 'etsy_2',
+] as const;
 export type MarketplaceName = (typeof MARKETPLACES)[number];
+/** İkinci mağazanın ana pazaryeri (kurallar, adaptör, rehber için) */
+export const baseOf = (m: string): BaseMarketplace => m.replace(/_2$/, '') as BaseMarketplace;
+export const isSecondAccount = (m: string) => m.endsWith('_2');
+/** Ana pazaryeri kaydından ikinci mağaza kaydını türetir */
+export function withSecondAccounts<T>(base: Record<BaseMarketplace, T>, second: (b: BaseMarketplace, v: T) => T): Record<MarketplaceName, T> {
+  const out = { ...base } as Record<string, T>;
+  for (const b of BASE_MARKETPLACES) out[`${b}_2`] = second(b, base[b]);
+  return out as Record<MarketplaceName, T>;
+}
 
 export interface MarketplaceMeta {
   label: string;
@@ -18,7 +38,7 @@ export interface MarketplaceMeta {
   at: string;
 }
 
-export const MARKETPLACE_META: Record<MarketplaceName, MarketplaceMeta> = {
+const BASE_META: Record<BaseMarketplace, MarketplaceMeta> = {
   trendyol: {
     label: 'Trendyol',
     color: '#F27A1A',
@@ -109,9 +129,13 @@ export const MARKETPLACE_META: Record<MarketplaceName, MarketplaceMeta> = {
   },
 };
 
-export const ORDER_PREFIX: Record<MarketplaceName, string> = {
+export const MARKETPLACE_META: Record<MarketplaceName, MarketplaceMeta> = withSecondAccounts(BASE_META, (_b, m) => ({
+  ...m, label: `${m.label} 2`, from: `${m.label} 2'den`, at: `${m.label} 2'de`,
+}));
+
+export const ORDER_PREFIX: Record<MarketplaceName, string> = withSecondAccounts<string>({
   trendyol: 'TY', hepsiburada: 'HB', n11: 'N11', ciceksepeti: 'CS', pazarama: 'PZ', idefix: 'IDF', koctas: 'KT', etsy: 'ETSY',
-};
+}, (_b, p) => `${p}2`);
 
 export const ORDER_STATUSES = ['new', 'approved', 'preparing', 'invoiced', 'shipped', 'delivered', 'cancelled', 'returned'] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];

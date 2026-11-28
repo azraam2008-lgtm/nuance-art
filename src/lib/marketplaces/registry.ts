@@ -1,5 +1,5 @@
 import 'server-only';
-import type { MarketplaceName } from './meta';
+import { withSecondAccounts, type MarketplaceName } from './meta';
 import type { MarketplaceAdapter, MarketplaceCredentials } from './types';
 import { GUIDES, hasRequiredKeys } from './guides';
 import { TrendyolAdapter } from './adapters/trendyol';
@@ -27,7 +27,8 @@ export interface AdapterOptions {
  *   4) SQL: insert into marketplaces(name,label,color) values ('yeni','Yeni','#000');
  *            insert into marketplace_credentials(marketplace_name) values ('yeni');
  */
-const FACTORIES: Record<MarketplaceName, (c: MarketplaceCredentials, o: AdapterOptions) => MarketplaceAdapter> = {
+type Factory = (c: MarketplaceCredentials, o: AdapterOptions) => MarketplaceAdapter;
+const FACTORIES: Record<MarketplaceName, Factory> = withSecondAccounts<Factory>({
   trendyol: (c) => new TrendyolAdapter(c),
   hepsiburada: (c) => new HepsiburadaAdapter(c),
   n11: (c) => new N11Adapter(c),
@@ -36,7 +37,7 @@ const FACTORIES: Record<MarketplaceName, (c: MarketplaceCredentials, o: AdapterO
   idefix: (c) => new IdefixAdapter(c),
   koctas: (c) => new KoctasAdapter(c),
   etsy: (c, o) => new EtsyAdapter(c, o.saveExtra),
-};
+}, (_b, f) => f);
 
 /**
  * Bağlı (aktif ve anahtarları girilmiş) pazaryeri için gerçek adaptörü döndürür; bağlı değilse null.

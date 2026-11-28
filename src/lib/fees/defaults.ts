@@ -286,7 +286,7 @@ export const DEFAULT_RATE_TABLES: Record<string, { effectiveFrom: string; source
 };
 
 export function defaultRule(marketplace: string): FeeRule | undefined {
-  return DEFAULT_RULES.find((r) => r.marketplace === marketplace);
+  return DEFAULT_RULES.find((r) => r.marketplace === marketplace.replace(/_2$/, ''));
 }
 
 export { CARRIERS_BY_MARKETPLACE } from './carriers';

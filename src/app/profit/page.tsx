@@ -2,7 +2,8 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Clock, TrendingDown, TrendingUp } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { useMarketplaces } from '@/components/useMarketplaces';
 import { useLiveData } from '@/components/live';
 import { Card, ErrorBox, MarketplaceBadge, PageLoader, cx, fmtDate, inputClass, tl, tl2 } from '@/components/ui';
 import CostBreakdown from '@/components/CostBreakdown';
@@ -35,6 +36,7 @@ const COLORS = { commission: '#6366F1', fees: '#A855F7', shipping: '#F59E0B', ta
 const LABELS: Record<string, string> = { commission: 'Komisyon', fees: 'Platform bedelleri', shipping: 'Kargo', tax: 'Stopaj', product_cost: 'Ürün maliyeti', other: 'Reklam/risk', net_profit: 'Net kâr' };
 
 export default function ProfitPage() {
+  const mpList = useMarketplaces();
   const [p, setP] = useState('this_month');
   const [mp, setMp] = useState('');
   const [detail, setDetail] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export default function ProfitPage() {
         </div>
         <select className={`${inputClass} !w-auto`} value={mp} onChange={(e) => setMp(e.target.value)}>
           <option value="">Tüm pazaryerleri</option>
-          {MARKETPLACES.map((m) => <option key={m} value={m}>{MARKETPLACE_META[m].label}</option>)}
+          {mpList.map((m) => <option key={m} value={m}>{MARKETPLACE_META[m].label}</option>)}
         </select>
         <span className="text-xs text-slate-500">{from} — {to}</span>
       </div>

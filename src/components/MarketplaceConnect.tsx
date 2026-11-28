@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { CheckCircle2, ChevronDown, ExternalLink, Link2, Plug, XCircle } from 'lucide-react';
-import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { MARKETPLACE_META, baseOf, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { GUIDES, hasRequiredKeys } from '@/lib/marketplaces/guides';
 import { api, useToast } from './live';
 import { Button, Field, MarketplaceBadge, cx, fmtDate, inputClass } from './ui';
@@ -28,11 +28,13 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [advanced, setAdvanced] = useState(false);
+  const [accountName, setAccountName] = useState(String(cred.extraConfig?.accountName ?? ''));
   const showSecret = guide.needs.secret !== 'none';
   const showSeller = guide.needs.seller === 'required' || guide.needs.seller === 'optional' || (guide.needs.seller === 'auto' && !!sellerId);
 
   const extraConfig = () => {
     const out: Record<string, unknown> = { ...(cred.extraConfig ?? {}) };
+    if (accountName.trim()) out.accountName = accountName.trim().slice(0, 60); else delete out.accountName;
     for (const f of guide.extra) {
       const v = extra[f.key]?.trim();
       if (!v) delete out[f.key];
@@ -78,7 +80,7 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
     }
   }
 
-  const etsyNeedsOauth = mp === 'etsy' && !cred.extraConfig?.refreshToken;
+  const etsyNeedsOauth = baseOf(mp) === 'etsy' && !cred.extraConfig?.refreshToken;
 
   return (
     <div className="space-y-4">
@@ -95,6 +97,11 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="sm:col-span-2">
+          <Field label="Mağaza adı (isteğe bağlı)" hint={`Aynı pazaryerinde birden fazla mağazanız varsa ayırt etmek için, ör. "Nisa Home Tekstil"`}>
+            <input className={inputClass} value={accountName} onChange={(e) => setAccountName(e.target.value)} maxLength={60} />
+          </Field>
+        </div>
         <Field label={meta.apiKeyLabel}><input className={`${inputClass} font-mono`} value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" spellCheck={false} /></Field>
         {showSecret && (
           <Field label={`${meta.apiSecretLabel}${guide.needs.secret === 'optional' ? ' (varsa)' : ''}`} hint={cred.hasSecret ? `Kayıtlı (${cred.apiSecretMasked}) — değiştirmek için yenisini yapıştırın.` : undefined}>
@@ -130,8 +137,8 @@ export default function MarketplaceConnect({ cred, onSaved, compact, back = 'set
       )}
       {result && <div className={cx('text-sm rounded-lg px-3 py-2 flex items-start gap-2', result.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800')}>{result.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <XCircle className="w-4 h-4 mt-0.5 shrink-0" />}{result.message}</div>}
       <div className="flex flex-wrap gap-2">
-        {mp !== 'etsy' && <Button variant="secondary" loading={testing} onClick={test}><Plug className="w-4 h-4" /> Bağlantıyı Test Et</Button>}
-        {mp === 'etsy' ? (
+        {baseOf(mp) !== 'etsy' && <Button variant="secondary" loading={testing} onClick={test}><Plug className="w-4 h-4" /> Bağlantıyı Test Et</Button>}
+        {baseOf(mp) === 'etsy' ? (
           <>
             <Button variant="secondary" loading={saving} onClick={() => save(!!cred.extraConfig?.refreshToken)}>Anahtarları kaydet</Button>
             {cred.apiKey && <a href={`/api/auth/etsy/start?back=${back}`} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium bg-[#F1641E] text-white hover:opacity-90"><Link2 className="w-4 h-4" /> {etsyNeedsOauth ? 'Etsy ile bağlan' : 'Etsy iznini yenile'}</a>}

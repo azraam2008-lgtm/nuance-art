@@ -94,7 +94,7 @@ export const POST = handle(async (req: Request) => {
   const numOrNull = (v: unknown) => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
   for (const p of created) for (const mp of new Set([...Object.keys(settings), ...marketplaces])) {
     if (!isMarketplace(mp)) continue;
-    const ls = { ...(defaults[mp] ?? {}), ...(settings[mp] ?? {}) };
+    const ls = { ...(defaults[mp] ?? defaults[mp.replace(/_2$/, '')] ?? {}), ...(settings[mp] ?? {}) };
     const override = numOrNull(ls.priceOverride);
     must(await db().from('marketplace_listings').upsert({
       product_id: p.id, marketplace_name: mp,

@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ChevronDown, Database, Save, ShieldCheck, Truck, Zap } from 'lucide-react';
-import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { BASE_MARKETPLACES, MARKETPLACE_META, baseOf, isSecondAccount, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import MarketplaceConnect, { type Cred } from '@/components/MarketplaceConnect';
 import InvoicingSettingsCard from '@/components/InvoicingSettings';
@@ -16,6 +16,7 @@ function SettingsInner() {
   const { bump } = useLive();
   const sp = useSearchParams();
   const [open, setOpen] = useState<MarketplaceName | null>(sp.get('etsy') ? 'etsy' : null);
+  const [added, setAdded] = useState<MarketplaceName[]>([]);
 
   useEffect(() => {
     const e = sp.get('etsy');
@@ -26,22 +27,30 @@ function SettingsInner() {
   if (loading) return <PageLoader />;
   if (error || !data) return <ErrorBox error={error ?? ''} onRetry={reload} />;
   const live = data.credentials.filter((c) => c.mode === 'live').length;
+  // Eklenmek istenen ikinci mağazalar (henüz kaydedilmemiş): boş kart olarak gösterilir
+  const blank = (m: MarketplaceName): Cred => ({ marketplace: m, apiKey: '', apiSecretMasked: '', hasSecret: false, sellerId: '', isActive: false, extraConfig: {}, lastTestedAt: null, lastTestOk: null, lastOrderSyncAt: null, mode: 'off' });
+  const creds: Cred[] = [];
+  for (const c of data.credentials) {
+    creds.push(c);
+    const second = `${c.marketplace}_2` as MarketplaceName;
+    if (!isSecondAccount(c.marketplace) && added.includes(second) && !data.credentials.some((x) => x.marketplace === second)) creds.push(blank(second));
+  }
 
   return (
     <div className="space-y-5 fade-in max-w-4xl">
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="font-medium">{live} / {MARKETPLACES.length} pazaryeri bağlı</span>
+        <span className="font-medium">{live} / {creds.length} mağaza bağlı</span>
         <span className={cx('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs', data.encryption ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>
           <ShieldCheck className="w-3.5 h-3.5" /> {data.encryption ? 'API Secret\'lar şifreli saklanıyor (AES-256-GCM)' : 'CREDENTIALS_ENCRYPTION_KEY tanımlı değil — secret\'lar şifresiz saklanır'}
         </span>
       </div>
 
       <div className="space-y-3">
-        {data.credentials.map((c) => (
-          <Card key={c.marketplace} className="overflow-hidden">
+        {creds.map((c) => (
+          <Card key={c.marketplace} className={cx('overflow-hidden', isSecondAccount(c.marketplace) && 'ml-4 sm:ml-8 border-dashed')}>
             <button onClick={() => setOpen(open === c.marketplace ? null : c.marketplace)} className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-slate-50">
               <MarketplaceBadge name={c.marketplace} />
-              <span className="font-medium">{MARKETPLACE_META[c.marketplace].label}</span>
+              <span className="font-medium">{MARKETPLACE_META[c.marketplace].label}{c.extraConfig?.accountName ? <span className="text-slate-500 font-normal"> · {String(c.extraConfig.accountName)}</span> : null}</span>
               <span className="flex-1" />
               <span className={cx('text-xs font-medium', c.mode === 'live' ? 'text-emerald-600' : 'text-slate-400')}>{c.mode === 'live' ? '● Bağlı' : c.mode === 'demo' ? '○ Simülasyon' : '○ Bağlı değil'}</span>
               {c.mode === 'live' && c.lastTestOk === false && <span className="text-xs text-rose-600">son test başarısız</span>}
@@ -50,6 +59,12 @@ function SettingsInner() {
             {open === c.marketplace && (
               <div className="px-5 pb-5 border-t border-slate-100 pt-4">
                 <MarketplaceConnect key={`${c.marketplace}-${c.mode}-${c.sellerId}`} cred={c} onSaved={() => { reload(); bump(); }} />
+                {!isSecondAccount(c.marketplace) && c.mode !== 'off' && baseOf(c.marketplace) !== 'etsy' && !creds.some((x) => x.marketplace === `${c.marketplace}_2`) && (
+                  <button onClick={() => { const s = `${c.marketplace}_2` as MarketplaceName; setAdded((a) => [...a, s]); setOpen(s); }}
+                    className="mt-4 w-full rounded-lg border border-dashed border-indigo-300 text-indigo-700 text-sm py-2.5 hover:bg-indigo-50">
+                    + Bu pazaryerine ikinci mağaza ekle (aynı ürünler, ortak stok)
+                  </button>
+                )}
               </div>
             )}
           </Card>
@@ -58,7 +73,7 @@ function SettingsInner() {
 
       <InvoicingSettingsCard />
 
-      <ListingDefaultsCard connected={data.credentials.filter((c) => c.mode !== 'off').map((c) => c.marketplace)} />
+      <ListingDefaultsCard connected={data.credentials.filter((c) => c.mode !== 'off' && !isSecondAccount(c.marketplace)).map((c) => c.marketplace)} />
 
       {data.demoMode && <DemoTools onDone={() => { reload(); bump(); }} />}
     </div>
@@ -77,7 +92,7 @@ function ListingDefaultsCard({ connected }: { connected: MarketplaceName[] }) {
   useEffect(() => {
     if (!open || defaults) return;
     api<{ listingDefaults: Record<string, Partial<Defaults[string]> & { commissionRate?: number | null }> }>('/api/onboarding').then((r) => {
-      setDefaults(Object.fromEntries(MARKETPLACES.map((m) => {
+      setDefaults(Object.fromEntries(BASE_MARKETPLACES.map((m) => {
         const d = r.listingDefaults?.[m] ?? {};
         return [m, {
           carrier: d.carrier ?? CARRIERS_BY_MARKETPLACE[m]?.[0] ?? '', handlingDays: d.handlingDays ?? 1, sameDayTag: d.sameDayTag ?? false, fastTag: d.fastTag ?? false,

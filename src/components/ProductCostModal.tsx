@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { MARKETPLACES as ALL_MPS, MARKETPLACE_META, isSecondAccount, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { CARRIERS_BY_MARKETPLACE } from '@/lib/fees/carriers';
 import { api, useLive, useToast } from './live';
 import { Button, Field, MarketplaceBadge, Modal, inputClass } from './ui';
@@ -28,6 +28,8 @@ const toRow = (l?: ListingCfg): Row => ({
 
 /** Ürünün maliyet bilgileri + 8 pazaryeri için komisyon / termin / Bugün Kargoda / kargo firması */
 export default function ProductCostModal({ product, onClose }: { product: ProductCfg | null; onClose: () => void }) {
+  // İkinci mağazalar (trendyol_2…) yalnızca bu ürünün orada ilanı varsa gösterilir
+  const MARKETPLACES = ALL_MPS.filter((m) => !isSecondAccount(m) || !!product?.listings.some((l) => l.marketplace_name === m));
   const toast = useToast();
   const { bump } = useLive();
   const [p, setP] = useState({ costPrice: '', costVatRate: '', desi: '', packagingCost: '', safetyStock: '0', minMargin: '' });

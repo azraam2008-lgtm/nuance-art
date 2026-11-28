@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Activity, Boxes, Lightbulb, ListChecks, Receipt, Calculator, LayoutDashboard, LogOut, Megaphone, Menu, Package, Plus, PlusCircle, Scale, Settings, ShoppingCart, TrendingUp, UserCog, X, Zap, Radio } from 'lucide-react';
 import { StoreMark } from './Brand';
 import { BRAND } from '@/lib/brand';
-import { MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
+import { BASE_MARKETPLACES, MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
 import { LiveProvider, ToastProvider, api, useLive, useLiveData, useToast } from './live';
 import { Button, MarketplaceBadge, cx } from './ui';
 
@@ -218,7 +218,7 @@ function Header({ demo, onMenu }: { demo: boolean; onMenu: () => void }) {
         {demo && (
           <>
             <select value={mp} onChange={(e) => setMp(e.target.value as MarketplaceName)} className="hidden sm:block text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white">
-              {MARKETPLACES.map((m) => <option key={m} value={m}>{MARKETPLACE_META[m].label}</option>)}
+              {BASE_MARKETPLACES.map((m) => <option key={m} value={m}>{MARKETPLACE_META[m].label}</option>)}
             </select>
             <Button variant="secondary" onClick={simulate} loading={busy} className="hidden sm:inline-flex"><Zap className="w-4 h-4" /> Sipariş simüle et</Button>
           </>

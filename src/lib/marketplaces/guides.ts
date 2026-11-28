@@ -1,5 +1,5 @@
 // Başlangıç sihirbazı ve API ayarları için pazaryeri bazlı "anahtarı nereden alırım" rehberi
-import type { MarketplaceName } from './meta';
+import { withSecondAccounts, type MarketplaceName } from './meta';
 
 export interface ListingDefaults {
   [marketplace: string]: { carrier?: string | null; handlingDays?: number; sameDayTag?: boolean; fastTag?: boolean; commissionRate?: number | null };
@@ -40,7 +40,7 @@ export function hasRequiredKeys(mp: MarketplaceName, c: { apiKey?: string | null
   return true;
 }
 
-export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = {
+export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = withSecondAccounts<MarketplaceGuide>({
   trendyol: {
     panelUrl: 'https://partner.trendyol.com',
     panelName: 'Trendyol Satıcı Paneli',
@@ -158,4 +158,4 @@ export const GUIDES: Record<MarketplaceName, MarketplaceGuide> = {
     secretRequired: false,
     note: 'Etsy, mağazanıza erişim için ayrıca izin ister; anahtarları kaydettikten sonra "Etsy ile bağlan" butonu görünür.',
   },
-};
+}, (_b, v) => v);

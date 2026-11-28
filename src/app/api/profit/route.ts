@@ -1,6 +1,6 @@
 import { handle, istanbulDate } from '@/lib/api';
 import { db, must } from '@/lib/supabase/server';
-import { isClosedStatus, isMarketplace, MARKETPLACES } from '@/lib/marketplaces/meta';
+import { baseOf, isClosedStatus, isMarketplace, MARKETPLACES } from '@/lib/marketplaces/meta';
 import { expenseShare, type ExpenseRow } from '@/lib/finance/expenses';
 
 export const dynamic = 'force-dynamic';
@@ -77,7 +77,7 @@ export const GET = handle(async (req: Request) => {
       if (sd) missed.sameDay++; else missed.fast++;
       missed.orders.push({ id: r.id, external_order_id: r.external_order_id, marketplace: r.marketplace_name, date: r.order_date, kind: sd ? 'Bugün Kargoda kaçırıldı' : 'Termin aşıldı' });
       // Trendyol: hizmet bedeli farkı (10,99 − 4,99) KDV hariç
-      if (sd && r.marketplace_name === 'trendyol') missed.extraCost += 6;
+      if (sd && baseOf(r.marketplace_name) === 'trendyol') missed.extraCost += 6;
     }
   }
 
