@@ -46,6 +46,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: ins.error.code === '23505' ? 'Bu e-posta ile zaten bir hesap var. Giriş yapın.' : ins.error.message }, { status: 409 });
     }
     const user = ins.data as { id: string; email: string; name: string; session_version: number };
+    await rawDb().from('store_members').insert({ user_id: user.id, store_id: inv.store_id, role: inv.role });
     await withStore(inv.store_id, () => audit('Ekibe katıldı', `${user.email}`), user.id, { role: inv.role, name: user.name });
     return withSession(NextResponse.json({ ok: true }), { uid: user.id, sid: inv.store_id, sv: user.session_version ?? 0, email: user.email, name: user.name });
   } catch (e) {

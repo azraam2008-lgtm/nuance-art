@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { AlarmClock, CheckSquare, ChevronLeft, ChevronRight, FileText, Printer, Search, Truck, X } from 'lucide-react';
 import CostBreakdown, { ProfitBadge } from '@/components/CostBreakdown';
 import InvoiceModal from '@/components/InvoiceModal';
-import { useMarketplaces } from '@/components/useMarketplaces';
+import { useMarketplaceLabel, useMarketplaces } from '@/components/useMarketplaces';
 import { MARKETPLACE_META, ORDER_STATUSES, ORDER_STATUS_META, RETURN_REASONS, isClosedStatus, type OrderStatus } from '@/lib/marketplaces/meta';
 import { api, useLive, useLiveData, useToast } from '@/components/live';
 import { Button, Card, Empty, ErrorBox, Field, MarketplaceBadge, Modal, PageLoader, cx, fmtDate, inputClass, tl2 } from '@/components/ui';
@@ -31,6 +31,7 @@ type Pending = { orders: Order[]; status: OrderStatus } | null;
 export default function OrdersPage() {
   const staff = useIsStaff();
   const mpList = useMarketplaces();
+  const mpLabel = useMarketplaceLabel();
   const [marketplace, setMarketplace] = useState('');
   const [status, setStatus] = useState('');
   const [late, setLate] = useState(false);
@@ -182,7 +183,7 @@ export default function OrdersPage() {
         </div>
         <select value={marketplace} onChange={(e) => { setMarketplace(e.target.value); setPage(0); }} className={`${inputClass} !w-auto flex-1 sm:flex-none`}>
           <option value="">Tüm Pazaryerleri</option>
-          {mpList.map((m) => <option key={m} value={m}>{MARKETPLACE_META[m].label}</option>)}
+          {mpList.map((m) => <option key={m} value={m}>{mpLabel(m)}</option>)}
         </select>
         <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }} className={`${inputClass} !w-auto flex-1 sm:flex-none`}>
           <option value="">Tüm Durumlar</option>

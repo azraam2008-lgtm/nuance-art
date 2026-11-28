@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { AlertTriangle, Clock, TrendingDown, TrendingUp } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { MARKETPLACE_META, type MarketplaceName } from '@/lib/marketplaces/meta';
-import { useMarketplaces } from '@/components/useMarketplaces';
+import { useMarketplaceLabel, useMarketplaces } from '@/components/useMarketplaces';
 import { useLiveData } from '@/components/live';
 import { Card, ErrorBox, MarketplaceBadge, PageLoader, cx, fmtDate, inputClass, tl, tl2 } from '@/components/ui';
 import CostBreakdown from '@/components/CostBreakdown';
@@ -37,6 +37,7 @@ const LABELS: Record<string, string> = { commission: 'Komisyon', fees: 'Platform
 
 export default function ProfitPage() {
   const mpList = useMarketplaces();
+  const mpLabel = useMarketplaceLabel();
   const [p, setP] = useState('this_month');
   const [mp, setMp] = useState('');
   const [detail, setDetail] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export default function ProfitPage() {
   const { data, error, loading, reload } = useLiveData<Report>(`/api/profit?from=${from}&to=${to}${mp ? `&marketplace=${mp}` : ''}`);
 
   const chart = useMemo(() => data ? Object.entries(data.byMarketplace).map(([k, v]) => ({
-    name: MARKETPLACE_META[k as MarketplaceName]?.label ?? k, commission: v.commission, fees: v.fees, shipping: v.shipping, tax: v.tax, product_cost: v.product_cost, net_profit: Math.max(0, v.net_profit),
+    name: mpLabel(k), commission: v.commission, fees: v.fees, shipping: v.shipping, tax: v.tax, product_cost: v.product_cost, net_profit: Math.max(0, v.net_profit),
   })) : [], [data]);
 
   return (
@@ -58,7 +59,7 @@ export default function ProfitPage() {
         </div>
         <select className={`${inputClass} !w-auto`} value={mp} onChange={(e) => setMp(e.target.value)}>
           <option value="">Tüm pazaryerleri</option>
-          {mpList.map((m) => <option key={m} value={m}>{MARKETPLACE_META[m].label}</option>)}
+          {mpList.map((m) => <option key={m} value={m}>{mpLabel(m)}</option>)}
         </select>
         <span className="text-xs text-slate-500">{from} — {to}</span>
       </div>
@@ -110,7 +111,7 @@ export default function ProfitPage() {
                 <tbody className="divide-y divide-slate-100">
                   {Object.entries(data.byMarketplace).sort((a, b) => b[1].net_profit - a[1].net_profit).map(([k, v]) => (
                     <tr key={k}>
-                      <td className="px-3 py-2"><MarketplaceBadge name={k} /><div className="text-[11px] text-slate-500">{v.orders} sip.</div></td>
+                      <td className="px-3 py-2"><MarketplaceBadge name={k} /><div className="text-[11px] text-slate-500">{mpLabel(k).includes('·') ? `${mpLabel(k).split(' · ')[1]} · ` : ''}{v.orders} sip.</div></td>
                       <td className="px-3 py-2 text-right tabular-nums">{tl(v.revenue_gross)}</td>
                       <td className={cx('px-3 py-2 text-right tabular-nums font-semibold', v.net_profit < 0 ? 'text-rose-600' : 'text-emerald-700')}>{tl(v.net_profit)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">%{v.revenue_net ? ((v.net_profit / v.revenue_net) * 100).toFixed(1) : '0'}</td>

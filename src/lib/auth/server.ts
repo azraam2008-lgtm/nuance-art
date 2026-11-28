@@ -20,8 +20,12 @@ export async function activeUser(): Promise<ActiveUser | null> {
   const s = await currentUser();
   if (!s) return null;
   const { data } = await rawDb().from('app_users').select('id, email, name, role, store_id, session_version').eq('id', s.uid).maybeSingle();
-  if (!data || data.store_id !== s.sid || Number(data.session_version ?? 0) !== Number(s.sv ?? 0)) return null;
-  return { id: data.id, email: data.email, name: data.name, role: data.role, storeId: data.store_id };
+  if (!data || Number(data.session_version ?? 0) !== Number(s.sv ?? 0)) return null;
+  if (data.store_id === s.sid) return { id: data.id, email: data.email, name: data.name, role: data.role, storeId: data.store_id };
+  // Kullanıcının diğer mağazalarından biri (mağaza değiştir): üyelik ve o mağazadaki rolü
+  const { data: m } = await rawDb().from('store_members').select('role').eq('user_id', data.id).eq('store_id', s.sid).maybeSingle();
+  if (!m) return null;
+  return { id: data.id, email: data.email, name: data.name, role: m.role, storeId: s.sid };
 }
 
 export async function withSession(res: NextResponse, user: { uid: string; sid: string; sv: number; email: string; name: string }) {

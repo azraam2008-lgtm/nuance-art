@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       throw new Error(ins.error.message);
     }
     const user = ins.data as { id: string; email: string; name: string; session_version: number };
+    await rawDb().from('store_members').insert({ user_id: user.id, store_id: store.id, role: 'owner' }); // tablo yoksa sessizce geçer
     await rawDb().from('marketplace_credentials').insert(BASE_MARKETPLACES.map((m) => ({ store_id: store.id, marketplace_name: m })));
     await rawDb().from('app_settings').insert({ store_id: store.id, key: 'company', value: { name: storeName, email } });
     return withSession(NextResponse.json({ ok: true }), { uid: user.id, sid: store.id, sv: user.session_version ?? 0, email: user.email, name: user.name });

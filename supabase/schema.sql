@@ -646,6 +646,25 @@ create index if not exists idx_invoices_due on invoices(status, next_try_at);
 alter table invoices enable row level security;
 
 -- =====================================================================
+-- 9i) BİR KULLANICININ BİRDEN FAZLA MAĞAZASI (mağaza değiştir)
+--  app_users.store_id = girişte açılan ana mağaza; diğer mağazalar burada.
+--  Her mağazanın ürün, stok, sipariş ve ayarları tamamen ayrıdır.
+-- =====================================================================
+create table if not exists store_members (
+  user_id    uuid not null references app_users(id) on delete cascade,
+  store_id   uuid not null references stores(id) on delete cascade,
+  role       text not null default 'owner' check (role in ('owner','admin','staff')),
+  created_at timestamptz not null default now(),
+  primary key (user_id, store_id)
+);
+create index if not exists idx_store_members_store on store_members(store_id);
+alter table store_members enable row level security;
+-- Mevcut herkes kendi ana mağazasının üyesi
+insert into store_members (user_id, store_id, role)
+select id, store_id, coalesce(role, 'owner') from app_users where store_id is not null
+on conflict (user_id, store_id) do nothing;
+
+-- =====================================================================
 -- FONKSİYONLAR
 -- =====================================================================
 
