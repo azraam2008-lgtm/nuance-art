@@ -128,7 +128,7 @@ export default function StoresPage() {
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); post({ action: 'create', name }, 'create'); }}>
             <div className="font-medium flex items-center gap-2"><Store className="w-4 h-4" /> Yeni mağaza</div>
             <p className="text-xs text-slate-500">Yeni mağaza boş açılır; pazaryeri bağlantılarını ve ürünlerini ayrıca kurarsınız. Aynı e-posta ve şifreyle girip yan menünün üstünden mağazalar arasında geçebilirsiniz.</p>
-            <Field label="Mağaza / marka adı"><input className={inputClass} required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ör. Berra Giyim" maxLength={120} /></Field>
+            <Field label="Mağaza / marka adı"><input className={inputClass} required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ör. Berezza" maxLength={120} /></Field>
             <div className="flex gap-2"><Button type="submit" loading={busy === 'create'}><Plus className="w-4 h-4" /> Mağazayı aç ve geç</Button><Button type="button" variant="ghost" onClick={() => setNewOpen(false)}>Vazgeç</Button></div>
           </form>
         )}
